@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  background: #050505;
+  color: #fff;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: #fff;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #73d9e8;
+}
+
+::selection {
+  background: #73d9e8;
+  color: #050505;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #5a5a5a;
+}
+
+input[type="range"] {
+  accent-color: #ff9865;
+}
+
+/* ---- keyframes (ported from Landing.dc.html) ---- */
+@keyframes oc-drift-a {
+  0% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-60px, 22px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+@keyframes oc-drift-b {
+  0% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(50px, -16px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+@keyframes oc-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes oc-blink {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+@keyframes oc-ping {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+@keyframes oc-float {
+  from { transform: rotate(var(--oc-rot, 0deg)) translateY(0); }
+  to { transform: rotate(var(--oc-rot, 0deg)) translateY(-16px); }
+}
+@keyframes oc-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-50% - 5px)); }
+}
+@keyframes oc-in {
+  from { background: rgba(115, 217, 232, 0.1); }
+  to { background: transparent; }
+}
+
+/* ---- animation driver classes ---- */
+.oc-drift { animation: oc-drift-a 40s ease-in-out infinite; transform-box: fill-box; }
+.oc-spin { animation: oc-spin 24s linear infinite; }
+.oc-float { animation: oc-float var(--oc-dur, 4200ms) ease-in-out infinite alternate; }
+.oc-marquee { animation: oc-marquee 48s linear infinite; }
+.oc-marquee-wrap:hover .oc-marquee { animation-play-state: paused; }
+
+/* hide horizontal scrollbars on the snap rails */
+.lp-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
+.lp-noscroll::-webkit-scrollbar { display: none; }
+
+/* ---- hover / active states (replacing DC style-hover / style-active) ---- */
+.lp-link:hover { background: rgba(255, 255, 255, 0.06); }
+.lp-iconbtn:hover { background: rgba(255, 255, 255, 0.06); }
+.lp-wallet:hover { filter: brightness(1.07); }
+.lp-wallet:active { transform: scale(0.97); }
+.lp-cta-primary:hover { background: #73d9e8; color: #050505; }
+.lp-cta-ghost:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.lp-stat { transition: border-color 0.3s, transform 0.3s; }
+.lp-stat:hover { border-color: rgba(255, 255, 255, 0.22); transform: translateY(-4px); }
+.lp-ticker-item:hover { background: #1a1a1a; color: #fff; }
+.lp-viewall:hover { background: #fff; color: #050505; }
+.lp-trend { transition: transform 0.25s ease, border-color 0.25s; }
+.lp-trend:hover { transform: translateY(-6px); border-color: rgba(255, 255, 255, 0.22); color: #fff; }
+.lp-idea:hover { background: #191919; }
+.lp-send:hover { background: #b69aff; }
+.lp-ctabtn:hover { filter: brightness(1.07); color: #1a0d05; }
+.lp-close:hover { background: #252525; }
+.lp-walletopt:hover { background: #1b1b1b; border-color: rgba(255, 255, 255, 0.2); }
+
+/* ---- AppNav ---- */
+.lp-navlink:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+.lp-searchbtn:hover { border-color: rgba(255, 255, 255, 0.2); color: #fff; }
+.lp-notif-item:hover { background: #161616; }
+.lp-menu-item:hover { background: #181818; color: #fff; }
+.lp-disconnect:hover { background: rgba(255, 104, 104, 0.08); }
+.lp-pressable:active { transform: scale(0.97); }
+.lp-aibtn:hover { border-color: rgba(182, 154, 255, 0.8); }
+.lp-aisuggest:hover { border-color: rgba(182, 154, 255, 0.5); }
+.lp-searchrow:hover { background: #181818; }
+
+/* ---- Launch wizard ---- */
+.lp-chip:hover { border-color: rgba(182, 154, 255, 0.6); }
+.lp-ideacard:hover { border-color: rgba(182, 154, 255, 0.6); }
+.lp-usedesc:hover { background: #2a2a2a; }
+.lp-upload:hover { border-color: rgba(255, 255, 255, 0.4); }
+.lp-explain:hover { background: rgba(182, 154, 255, 0.08); }
+.lp-next:hover { filter: brightness(1.06); }
+.lp-next:active { transform: scale(0.98); }
+
+/* ---- Explore ---- */
+.lp-explore-card { transition: transform 0.25s ease, border-color 0.25s; }
+.lp-explore-card:hover { transform: translateY(-5px); border-color: rgba(255, 255, 255, 0.22); color: #fff; }
+.lp-list-row:hover { background: #111; color: #fff; }
+.lp-statecta:hover { background: #73d9e8; color: #050505; }
+
+/* ---- Token detail ---- */
+.lp-pill-invert:hover { background: #fff; color: #050505; }
+.lp-copyaddr:hover { color: #fff; }
+.lp-trade-row:hover { background: #121212; color: #fff; }
+.lp-term-link:hover { color: #fff; }
+
+/* ---- Terminal ---- */
+.lp-tnav:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
+.lp-trow:hover { background: #121212; }
+.lp-quick:hover { border-color: rgba(255, 255, 255, 0.25); }
+.lp-bright:hover { filter: brightness(1.08); }
+.lp-bright:active { transform: scale(0.98); }
+
+/* ---- Intelligence ---- */
+.lp-h111:hover { background: #111; }
+.lp-h121:hover { background: #121212; }
+.lp-prompt:hover { border-color: rgba(182, 154, 255, 0.6); color: #fff; }
+
+/* ---- reduced motion: disable decorative animation ---- */
+@media (prefers-reduced-motion: reduce) {
+  .oc-drift,
+  .oc-spin,
+  .oc-float,
+  .oc-marquee {
+    animation: none !important;
+  }
+}
