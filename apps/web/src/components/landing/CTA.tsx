@@ -44,7 +44,7 @@ export function CTA() {
           starts here.
         </h2>
         <Link
-          href="/launch"
+          href="/login"
           className="lp-ctabtn"
           style={{
             position: "relative",
@@ -59,7 +59,7 @@ export function CTA() {
             background: "linear-gradient(90deg,#FF9865,#FFE3CF)",
           }}
         >
-          Launch Your Token
+          Get started
         </Link>
       </Reveal>
     </section>

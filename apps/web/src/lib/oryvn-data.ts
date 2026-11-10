@@ -41,6 +41,16 @@ export const EXAMPLES: Token[] = TOKENS;
 export const LAUNCHED: Token[] = [];
 export const HAS_LAUNCHES = LAUNCHED.length > 0;
 
+/** Real platform activity (launches, buys, sells). Indexer-fed in production; empty pre-launch. */
+export interface PlatformEvent {
+  kind: "Launch" | "Buy" | "Sell" | "Graduation";
+  sym: string;
+  strk?: number;
+  wallet: string;
+  t: number;
+}
+export const PLATFORM_ACTIVITY: PlatformEvent[] = [];
+
 /** Real platform launches, ranked by market cap (most valuable first). Empty pre-launch. */
 export function topLaunched(): Token[] {
   return LAUNCHED.slice().sort((a, b) => b.mcap - a.mcap);

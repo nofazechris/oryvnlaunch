@@ -9,17 +9,18 @@ import { Templates } from "./Templates";
 import { HowItWorks } from "./HowItWorks";
 import { AISection } from "./AISection";
 import { BentoFeatures } from "./BentoFeatures";
+import { LiveActivity } from "./LiveActivity";
 import { CTA } from "./CTA";
 import { Footer } from "./Footer";
 
 const BRAND = "oryvnlaunch";
 const CONTOUR_DENSITY = 46;
 
+/** Public marketing page. Only "Get started" leads into sign-in; everything else is on-page. */
 export function Landing() {
   const w = useViewportWidth();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const getStarted = () => router.push("/login");
 
   return (
     <main style={{ minHeight: "100vh", background: "#050505", overflowX: "hidden" }}>
@@ -29,15 +30,15 @@ export function Landing() {
         contourDensity={CONTOUR_DENSITY}
         menuOpen={menuOpen}
         onToggleMenu={() => setMenuOpen((v) => !v)}
-        onOpenWallet={getStarted}
-        onSearch={getStarted}
-        walletLabel="Get started"
+        onGetStarted={() => router.push("/login")}
+        ctaLabel="Get started"
       />
       <TopLaunches />
       <Templates />
       <HowItWorks />
       <AISection />
       <BentoFeatures />
+      <LiveActivity />
       <CTA />
       <Footer brand={BRAND} />
     </main>

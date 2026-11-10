@@ -33,7 +33,7 @@ export function BentoFeatures() {
   const wide = w >= 900;
 
   return (
-    <section data-screen-label="Features" style={{ maxWidth: 1440, margin: "0 auto", padding: "clamp(72px,9vw,140px) clamp(18px,5vw,72px) 0" }}>
+    <section id="features" data-screen-label="Features" style={{ maxWidth: 1440, margin: "0 auto", padding: "clamp(72px,9vw,140px) clamp(18px,5vw,72px) 0", scrollMarginTop: 24 }}>
       <Reveal style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 36 }}>
         <h2 style={{ margin: 0, fontWeight: 400, fontSize: "clamp(40px,5vw,64px)", letterSpacing: "-0.04em", lineHeight: 1 }}>Everything to launch smarter.</h2>
         <p style={{ margin: 0, color: "#A1A1A1", fontSize: 16, maxWidth: 520, lineHeight: 1.6 }}>One place to create a token, launch it on a bonding curve and check what you&apos;re buying.</p>
