@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useViewportWidth } from "@/lib/hooks";
 import { GRAD_TARGET, TOKENS, bySym, holders as holdersOf, trades as tradesOf, view } from "@/lib/oryvn-data";
 import { Contour } from "@/components/landing/Contour";
+import { TokenAvatar } from "@/components/ui/TokenAvatar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 interface Report {
@@ -171,7 +172,7 @@ export function Intelligence() {
         ) : (
           <div style={{ maxWidth: 960, margin: "0 auto", padding: "clamp(28px,4vw,48px) clamp(18px,4vw,40px) 140px", display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-              <span style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 16, background: tok.bg, color: tok.ink, display: "grid", placeItems: "center", fontWeight: 700, fontSize: 12 }}>{tok.sym2}</span>
+              <TokenAvatar sym={tok.sym} bg={tok.bg} ink={tok.ink} size={52} />
               <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
                 <span style={{ fontSize: "clamp(22px,2.6vw,30px)", letterSpacing: "-0.03em", lineHeight: 1.15 }}>{run?.q}</span>
                 <span style={{ fontSize: 12, color: "#696969" }}>{tok.name} · ${tok.sym} · indexed {run?.time}</span>

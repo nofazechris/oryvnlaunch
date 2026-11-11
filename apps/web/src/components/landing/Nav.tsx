@@ -51,7 +51,7 @@ export function Nav({ brand, showNavLinks, showBurger, menuOpen, onToggleMenu, o
             </button>
           )}
 
-          <button onClick={onGetStarted} className="lp-wallet" style={{ height: 40, padding: "0 20px", borderRadius: 999, border: 0, cursor: "pointer", fontWeight: 600, fontSize: 14, color: "#1a0d05", background: "linear-gradient(90deg,#FF9865,#FFE3CF)" }}>
+          <button onClick={onGetStarted} className="lp-wallet" style={{ height: 40, padding: "0 20px", borderRadius: 999, border: 0, cursor: "pointer", fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", flexShrink: 0, color: "#1a0d05", background: "linear-gradient(90deg,#FF9865,#FFE3CF)" }}>
             {ctaLabel}
           </button>
         </div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { topLaunched, view } from "@/lib/oryvn-data";
 import { Reveal } from "./Reveal";
 import { Contour } from "./Contour";
+import { TokenAvatar } from "@/components/ui/TokenAvatar";
 
 const SLOT_GRADS = [
   "conic-gradient(from 200deg,#73D9E8,#B69AFF,#F38FC4,#FF9865,#73D9E8)",
@@ -58,7 +59,7 @@ export function TopLaunches() {
               <div key={i} style={{ display: "grid", gridTemplateColumns: "28px 44px 1fr auto", gap: 12, alignItems: "center", padding: "12px 14px", borderRadius: 16, background: "#0d0d0d", border: t ? "1px solid rgba(255,255,255,0.06)" : "1px dashed rgba(255,255,255,0.14)" }}>
                 <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 14, color: i === 0 ? "#fff" : "#696969" }}>{i + 1}</span>
                 {t ? (
-                  <span style={{ width: 44, height: 44, borderRadius: 14, background: t.bg, color: t.ink, display: "grid", placeItems: "center", fontSize: 11, fontWeight: 700 }}>{t.sym2}</span>
+                  <TokenAvatar sym={t.sym} bg={t.bg} ink={t.ink} size={44} />
                 ) : (
                   <span style={{ width: 44, height: 44, borderRadius: 14, background: SLOT_GRADS[i], opacity: i === 0 ? 0.5 : 1, border: i === 0 ? "0" : "1px dashed rgba(255,255,255,0.14)" }} />
                 )}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useViewportWidth } from "@/lib/hooks";
 import { EXAMPLES, LAUNCHED, LAUNCH_TEMPLATES, view, type TokenView } from "@/lib/oryvn-data";
 import { Contour } from "@/components/landing/Contour";
+import { TokenAvatar } from "@/components/ui/TokenAvatar";
 
 type SortCmp = (a: TokenView, b: TokenView) => number;
 
@@ -107,7 +108,7 @@ export function Explore() {
       </section>
 
       {/* Sticky filter bar */}
-      <section style={{ position: "sticky", top: 65, zIndex: 20, background: "rgba(5,5,5,0.9)", backdropFilter: "blur(14px)", borderTop: "1px solid rgba(255,255,255,0.07)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+      <section style={{ position: "sticky", top: 64, zIndex: 20, background: "rgba(5,5,5,0.9)", backdropFilter: "blur(14px)", borderTop: "1px solid rgba(255,255,255,0.07)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
         <div style={{ maxWidth: 1440, margin: "0 auto", padding: "12px clamp(18px,5vw,72px)", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <div className="lp-noscroll" style={{ display: "flex", gap: 4, overflowX: "auto", flex: "1 1 auto", minWidth: 0 }}>
             {Object.entries(TABS).map(([k, t]) => (
@@ -184,7 +185,7 @@ export function Explore() {
               <Link key={t.sym} href={t.href} className="lp-explore-card" style={{ gridColumn: big ? "span 2" : "auto", position: "relative", borderRadius: 28, background: "#0d0d0d", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden", display: "flex", flexDirection: big ? "row" : "column" }}>
                 <div style={{ position: "relative", flex: big ? "0 0 46%" : "0 0 auto", minHeight: big ? 300 : 180, margin: 8, borderRadius: 22, background: t.bg, color: t.ink, overflow: "hidden", display: "grid", placeItems: "center" }}>
                   <span style={{ position: "absolute", width: "62%", aspectRatio: "1", borderRadius: "50%", background: "rgba(255,255,255,0.35)", right: "-12%", bottom: "-18%" }} />
-                  <span style={{ position: "relative", fontSize: big ? 88 : 64, fontWeight: 700, letterSpacing: "-0.06em", opacity: 0.26 }}>{t.sym}</span>
+                  <span style={{ position: "relative" }}><TokenAvatar sym={t.sym} bg="rgba(255,255,255,0.32)" ink={t.ink} size={big ? 132 : 96} radius={30} /></span>
                   <span style={{ position: "absolute", left: 12, top: 12, padding: "5px 10px", borderRadius: 999, background: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: 600 }}>{hasLaunches ? reason : "Example"}</span>
                 </div>
                 <div style={{ flex: 1, padding: big ? "20px 22px 20px 6px" : "6px 18px 20px", display: "flex", flexDirection: "column", gap: 14, justifyContent: "center", minWidth: 0 }}>
@@ -214,7 +215,7 @@ export function Explore() {
             {cards.map(({ t }) => (
               <Link key={t.sym} href={t.href} className="lp-list-row" style={{ display: "grid", gridTemplateColumns: listCols, gap: 16, alignItems: "center", padding: "12px 18px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                 <span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-                  <span style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 14, background: t.bg, color: t.ink, display: "grid", placeItems: "center", fontSize: 11, fontWeight: 700 }}>{t.sym2}</span>
+                  <TokenAvatar sym={t.sym} bg={t.bg} ink={t.ink} size={44} />
                   <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                     <span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</span>
                     <span style={{ fontSize: 12, color: "#696969" }}>${t.sym} · {hasLaunches ? t.age : "Example"}</span>

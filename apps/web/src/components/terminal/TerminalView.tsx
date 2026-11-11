@@ -7,6 +7,7 @@ import { useWalletStore } from "@/lib/wallet-store";
 import { GRAD_TARGET, TOKENS, bySym, candles as candlesOf, fmtK, fmtP, holders as holdersOf, trades as tradesOf, view, type TokenView } from "@/lib/oryvn-data";
 import { TerminalChart } from "./TerminalChart";
 import { CurveViz } from "./CurveViz";
+import { TokenAvatar } from "@/components/ui/TokenAvatar";
 
 const BRAND = "oryvnlaunch";
 const TFS = ["1m", "5m", "15m", "1h", "4h", "24h"];
@@ -208,7 +209,7 @@ export function TerminalView({ symbol }: { symbol: string }) {
             <div className="lp-noscroll" style={{ flex: 1, overflowY: "auto", padding: "0 8px 16px" }}>
               {list.map((c) => (
                 <button key={c.sym} onClick={() => { setSel(c.idx); setHover(null); setAiMsgs([]); }} className="lp-trow" style={{ width: "100%", display: "grid", gridTemplateColumns: "42px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "10px 10px", borderRadius: 16, border: 0, background: c.idx === sel ? "#151515" : "transparent", color: "#fff", cursor: "pointer", textAlign: "left" }}>
-                  <span style={{ width: 42, height: 42, borderRadius: 13, background: c.bg, color: c.ink, display: "grid", placeItems: "center", fontSize: 11, fontWeight: 700 }}>{c.sym2}</span>
+                  <TokenAvatar sym={c.sym} bg={c.bg} ink={c.ink} size={42} />
                   <span style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
                     <span style={{ display: "flex", gap: 6, alignItems: "baseline", minWidth: 0 }}><span style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span><span style={{ fontSize: 12, color: "#696969" }}>{c.age}</span></span>
                     <span style={{ height: 3, borderRadius: 9, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${c.bond}%`, background: c.g0 }} /></span>
@@ -234,7 +235,7 @@ export function TerminalView({ symbol }: { symbol: string }) {
         <section style={{ minWidth: 0, padding: "clamp(14px,2vw,24px)", display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", gap: 16, alignItems: "center", minWidth: 0 }}>
-              <span style={{ width: 68, height: 68, flexShrink: 0, borderRadius: 22, background: t.bg, color: t.ink, display: "grid", placeItems: "center", fontWeight: 700, fontSize: 18, letterSpacing: "-0.03em", boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>{t.sym2}</span>
+              <span style={{ flexShrink: 0, borderRadius: 22, boxShadow: "0 12px 30px rgba(0,0,0,0.5)", display: "inline-flex" }}><TokenAvatar sym={t.sym} bg={t.bg} ink={t.ink} size={68} radius={22} /></span>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <span style={{ fontSize: "clamp(24px,2.4vw,32px)", letterSpacing: "-0.03em", lineHeight: 1 }}>{t.name}</span>
@@ -487,7 +488,7 @@ export function TerminalView({ symbol }: { symbol: string }) {
               {["review", "confirmed", "failed"].includes(tx.stage) && <button onClick={() => { clearTimeout(txTimer.current); setTx(null); }} aria-label="Close" className="lp-close" style={{ width: 34, height: 34, borderRadius: "50%", border: 0, background: "#191919", color: "#fff", cursor: "pointer" }}>✕</button>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 18, background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <span style={{ width: 48, height: 48, borderRadius: 15, background: t.bg, color: t.ink, display: "grid", placeItems: "center", fontWeight: 700, fontSize: 13 }}>{t.sym2}</span>
+              <TokenAvatar sym={t.sym} bg={t.bg} ink={t.ink} size={48} />
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={{ fontWeight: 600 }}>{tx.side === "buy" ? "Buy" : "Sell"} {t.sym}</span><span style={{ fontFamily: mono, fontSize: 13, color: "#A1A1A1" }}>{tx.side === "buy" ? `${tx.amt} STRK → ${tx.out}` : `${tx.amt} ${t.sym} → ${tx.out}`}</span></div>
             </div>
             {tx.stage === "review" ? (

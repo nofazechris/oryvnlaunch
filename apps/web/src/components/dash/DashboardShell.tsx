@@ -6,7 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useViewportWidth } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/auth-store";
 import { useWalletStore } from "@/lib/wallet-store";
+import { useUiStore } from "@/lib/ui-store";
 import { SearchModal } from "@/components/app/SearchModal";
+import { Icon } from "@/components/ui/Icons";
 
 const ic = (d: ReactNode) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
@@ -44,7 +46,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState(false);
-  const [walletModal, setWalletModal] = useState(false);
+  // The wallet modal is driven by the shared UI store so any screen (Launch, Portfolio,
+  // Token, Overview) can open it with setPanel("wallet").
+  const panel = useUiStore((s) => s.panel);
+  const setPanel = useUiStore((s) => s.setPanel);
+  const walletModal = panel === "wallet";
+  const setWalletModal = (open: boolean) => setPanel(open ? "wallet" : null);
   const [account, setAccount] = useState(false);
   const mounted = useRef(false);
 
@@ -58,7 +65,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
+    // Lets the Settings page change the sidebar preference live.
+    const onSidebar = (e: Event) => setCollapsed(!!(e as CustomEvent<boolean>).detail);
+    window.addEventListener("oryvn-sidebar", onSidebar);
     mounted.current = true;
+    return () => window.removeEventListener("oryvn-sidebar", onSidebar);
   }, [hydrateAuth, hydrateWallet]);
 
   useEffect(() => {
@@ -147,11 +158,22 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             {w >= 640 && <span style={{ display: "flex", gap: 16, alignItems: "center" }}>Search<span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 11, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, padding: "2px 6px" }}>⌘K</span></span>}
           </button>
           {connected ? (
-            <span style={{ display: "flex", alignItems: "center", gap: 7, height: 40, padding: "0 14px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", fontSize: 13, fontFamily: "var(--font-geist-mono),monospace" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />{wallet}
+            <span title={wallet ?? ""} style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, height: 40, minWidth: 40, padding: w < 520 ? 0 : "0 14px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", fontSize: 13, fontFamily: "var(--font-geist-mono),monospace", whiteSpace: "nowrap", flexShrink: 0 }}>
+              {w < 520 ? (
+                <>
+                  <Icon name="wallet" size={18} />
+                  <span style={{ position: "absolute", top: 7, right: 7, width: 8, height: 8, borderRadius: "50%", background: "#55D69A", boxShadow: "0 0 0 2px #050505" }} />
+                </>
+              ) : (
+                <>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />{wallet}
+                </>
+              )}
             </span>
           ) : (
-            <button onClick={() => setWalletModal(true)} className="lp-bright" style={{ height: 40, padding: "0 16px", borderRadius: 999, border: 0, cursor: "pointer", fontWeight: 600, fontSize: 13, color: "#1a0d05", background: "linear-gradient(90deg,#FF9865,#FFE3CF)" }}>Connect wallet</button>
+            <button onClick={() => setWalletModal(true)} aria-label="Connect wallet" className="lp-bright" style={{ height: 40, minWidth: 40, padding: w < 520 ? 0 : "0 16px", borderRadius: 999, border: 0, cursor: "pointer", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0, color: "#1a0d05", background: "linear-gradient(90deg,#FF9865,#FFE3CF)", display: "grid", placeItems: "center" }}>
+              {w < 520 ? <Icon name="wallet" size={18} /> : "Connect wallet"}
+            </button>
           )}
           <div style={{ position: "relative" }}>
             <button onClick={() => setAccount((v) => !v)} aria-label="Account" style={{ width: 40, height: 40, borderRadius: "50%", border: 0, cursor: "pointer", background: session.method === "google" ? "linear-gradient(135deg,#73D9E8,#B69AFF)" : "linear-gradient(135deg,#F38FC4,#FF9865)", color: "#050505", fontWeight: 700, fontSize: 14, display: "grid", placeItems: "center" }}>

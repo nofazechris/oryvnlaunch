@@ -152,6 +152,10 @@ input[type="range"] {
 .lp-trade-row:hover { background: #121212; color: #fff; }
 .lp-term-link:hover { color: #fff; }
 
+/* ---- Landing feature tiles ---- */
+.lp-bento { transition: border-color 0.25s, transform 0.25s; }
+.lp-bento:hover { border-color: rgba(255, 255, 255, 0.2); transform: translateY(-3px); }
+
 /* ---- Terminal ---- */
 .lp-tnav:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
 .lp-trow:hover { background: #121212; }

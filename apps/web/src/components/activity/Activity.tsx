@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useViewportWidth } from "@/lib/hooks";
 import { useWalletStore } from "@/lib/wallet-store";
 import { ME, TOKENS, activity, ago, bySym, hash, view, type ActivityItem } from "@/lib/oryvn-data";
+import { TokenAvatar } from "@/components/ui/TokenAvatar";
 
 type Kind = "Buy" | "Sell" | "Launch" | "Deploy";
 interface Row extends Omit<ActivityItem, "kind"> {
@@ -125,7 +126,7 @@ export function Activity() {
         {items.map((a) => (
           <div key={a.key} className="lp-list-row" style={{ display: "grid", gridTemplateColumns: cols, gap: 14, alignItems: "center", padding: "12px 14px", borderRadius: 16, animation: a.anim }}>
             <Link href={a.t.href} style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-              <span style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 14, background: a.t.bg, color: a.t.ink, display: "grid", placeItems: "center", fontSize: 11, fontWeight: 700 }}>{a.t.sym2}</span>
+              <TokenAvatar sym={a.t.sym} bg={a.t.bg} ink={a.t.ink} size={44} />
               <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                 <span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.t.name}</span>
                 <span style={{ fontSize: 12, color: "#696969" }}>${a.t.sym}</span>

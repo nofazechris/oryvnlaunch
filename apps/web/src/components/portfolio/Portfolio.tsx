@@ -7,6 +7,7 @@ import { useWalletStore } from "@/lib/wallet-store";
 import { useUiStore } from "@/lib/ui-store";
 import { ME, TOKENS, activity, ago, bySym, fmtK, fmtP, hash, rng, view } from "@/lib/oryvn-data";
 import { Contour } from "@/components/landing/Contour";
+import { TokenAvatar } from "@/components/ui/TokenAvatar";
 
 const RANGES = ["24H", "7D", "30D", "ALL"];
 const RANGE_N: Record<string, number> = { "24H": 24, "7D": 42, "30D": 60, ALL: 80 };
@@ -225,7 +226,7 @@ export function Portfolio() {
               return (
                 <Link key={x.sym} href={x.href} className="lp-list-row" style={{ display: "grid", gridTemplateColumns: hCols, gap: 12, alignItems: "center", padding: "12px 22px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                   <span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-                    <span style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 14, background: x.bg, color: x.ink, display: "grid", placeItems: "center", fontSize: 11, fontWeight: 700 }}>{x.sym2}</span>
+                    <TokenAvatar sym={x.sym} bg={x.bg} ink={x.ink} size={44} />
                     <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}><span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{x.name}</span><span style={{ fontSize: 12, color: "#696969" }}>${x.sym}</span></span>
                   </span>
                   <span style={{ textAlign: "right", fontFamily: mono, fontSize: 13 }}>{fmtK(x.q)}</span>

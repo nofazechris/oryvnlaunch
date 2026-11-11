@@ -8,7 +8,7 @@ import { useWalletStore } from "@/lib/wallet-store";
 import { useUiStore } from "@/lib/ui-store";
 import { GRAD_TARGET, TOKENS, bySym, candles, fmtK, holders as holdersOf, trades as tradesOf, view } from "@/lib/oryvn-data";
 import { Contour } from "@/components/landing/Contour";
-import { ImageSlot } from "@/components/landing/ImageSlot";
+import { TokenAvatar } from "@/components/ui/TokenAvatar";
 import { AreaChart } from "./AreaChart";
 
 const DESCS: Record<string, string> = {
@@ -165,9 +165,8 @@ export function TokenDetail({ symbol }: { symbol: string }) {
                 <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1 }}>{t.name}</span>
                 <span style={{ fontFamily: mono, fontWeight: 600 }}>{t.bond}%</span>
               </div>
-              <div style={{ position: "absolute", left: 14, right: 14, bottom: 14, height: "68%", display: "grid", placeItems: "center" }}>
-                <span style={{ position: "absolute", fontSize: 110, fontWeight: 700, letterSpacing: "-0.06em", opacity: 0.2 }}>{t.sym}</span>
-                <ImageSlot radius={22} placeholder="Drop token artwork" style={{ background: "transparent", borderColor: "rgba(0,0,0,0.12)" }} />
+              <div style={{ position: "absolute", left: 14, right: 14, bottom: 14, height: "68%", borderRadius: 22, background: "rgba(255,255,255,0.28)", display: "grid", placeItems: "center" }}>
+                <TokenAvatar sym={t.sym} bg="rgba(255,255,255,0.35)" ink={t.ink} size={170} radius={42} />
               </div>
             </div>
           </div>

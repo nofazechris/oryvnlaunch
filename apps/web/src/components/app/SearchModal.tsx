@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { TOKENS, view } from "@/lib/oryvn-data";
+import { TokenAvatar } from "@/components/ui/TokenAvatar";
 
 export function SearchModal({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
@@ -44,7 +45,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
           </span>
           {results.map((t) => (
             <Link key={t.sym} href={t.href} onClick={onClose} className="lp-searchrow" style={{ display: "grid", gridTemplateColumns: "40px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "10px 12px", borderRadius: 14, color: "#fff", textDecoration: "none" }}>
-              <span style={{ width: 40, height: 40, borderRadius: 12, background: t.bg, color: t.ink, display: "grid", placeItems: "center", fontSize: 10, fontWeight: 700 }}>{t.sym2}</span>
+              <TokenAvatar sym={t.sym} bg={t.bg} ink={t.ink} size={40} />
               <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{t.name} <span style={{ color: "#696969", fontWeight: 500 }}>${t.sym}</span></span>
                 <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 11, color: "#696969", overflow: "hidden", textOverflow: "ellipsis" }}>{t.addrShort} · by {t.creator}</span>
