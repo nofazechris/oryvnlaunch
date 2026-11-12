@@ -1,0 +1,28 @@
+{
+  "name": "@launchpad/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reads the factory and curve events from Starknet and keeps Postgres in step with the chain",
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/main.ts --format esm --clean",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@launchpad/chain": "workspace:*",
+    "@launchpad/db": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.16",
+    "@electric-sql/pglite-socket": "0.2.19",
+    "@types/node": "24.19.2",
+    "tsup": "9.0.0",
+    "tsx": "4.23.15",
+    "typescript": "5.7.2",
+    "vitest": "5.1.0"
+  }
+}
