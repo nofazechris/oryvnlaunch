@@ -50,6 +50,51 @@ snforge test
   the trade, so price and market cap can be derived from the event alone.
 - `BondingCurve::Graduated`.
 
+## Deploying
+
+Everything runs inside WSL (Ubuntu). Use `bash scripts/<name>.sh` from `contracts/`.
+
+`scripts/deploy.sh` declares the three classes, deploys the factory wired to them, reads every
+setting back from the chain to confirm it, and writes `deployments/<network>.json`. Token and
+curve instances are not deployed by hand: the factory deploys one pair per launch.
+
+It never touches a key. Signing is done by `sncast` with the account you name, so create that
+account yourself, and use a *different* address for the factory owner and the fee recipient.
+
+### Sepolia
+
+```bash
+# 1. A deployer account. The private key stays in sncast's own store, not in this repo.
+sncast account create --network sepolia --name oryvn-deployer
+# 2. Fund the address it prints with Sepolia STRK from https://faucet.starknet.io, then:
+sncast account deploy --network sepolia --name oryvn-deployer
+
+# 3. Deploy. OWNER and TREASURY are your own wallet addresses (Argent X / Braavos).
+ACCOUNT=oryvn-deployer \
+FACTORY_OWNER=0x...     \
+FEE_RECIPIENT=0x...     \
+DEPLOY_FEE_STRK=10      \
+GRADUATION_RAISE_STRK=1000 \
+bash scripts/deploy.sh
+```
+
+It prints a summary and waits for you to type `deploy`. `--dry-run` estimates without sending;
+`--yes` skips the prompt. The script refuses mainnet on purpose: review the curve maths and put
+the owner behind a multisig first. Once `deployments/sepolia.json` exists, commit it so the
+frontend and indexer read their addresses from one place.
+
+### Rehearse locally first
+
+```bash
+bash scripts/devnet.sh start      # terminal 1: local node (public throwaway test keys)
+bash scripts/devnet.sh accounts   # terminal 2: import its accounts into devnet-accounts.json
+# deploy.sh with NETWORK=devnet RPC_URL=http://127.0.0.1:5050/rpc ACCOUNTS_FILE=devnet-accounts.json
+bash scripts/smoke.sh             # launch, buy, sell, graduate and freeze, on a real node
+```
+
+Devnet predeploys STRK at the real address, so the rehearsal uses the same constructor
+arguments as Sepolia.
+
 ## Not done yet
 
 - Post-graduation pool creation (the reserved supply and raised STRK are not migrated).

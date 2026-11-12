@@ -37,3 +37,5 @@ next-env.d.ts
 contracts/target/
 contracts/.snfoundry_cache/
 contracts/accounts.json
+contracts/devnet-accounts.json
+contracts/deployments/devnet.json
