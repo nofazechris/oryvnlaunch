@@ -32,3 +32,8 @@ coverage/
 # misc
 *.tsbuildinfo
 next-env.d.ts
+
+# cairo / starknet
+contracts/target/
+contracts/.snfoundry_cache/
+contracts/accounts.json

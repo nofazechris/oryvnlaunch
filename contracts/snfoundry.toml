@@ -1,0 +1,6 @@
+[sncast.default]
+url = "http://127.0.0.1:5050/rpc"
+account = "devnet"
+accounts-file = "accounts.json"
+wait-params = { timeout = 300, retry-interval = 5 }
+block-id = "latest"
