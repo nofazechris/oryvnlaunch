@@ -8,4 +8,7 @@ pub mod factory;
 pub mod mock_strk;
 
 #[cfg(test)]
+pub mod mock_usdc;
+
+#[cfg(test)]
 mod tests;

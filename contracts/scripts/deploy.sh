@@ -1,23 +1,30 @@
 #!/usr/bin/env bash
 # Deploy the oryvnlaunch contracts: declare OryvnToken, BondingCurve and TokenFactory, then
-# deploy the factory wired to them. Token and curve instances are deployed later, by the
-# factory, one per launch.
+# deploy the factory with its quote assets (STRK, and USDC when configured). Token and curve
+# instances are deployed later, by the factory, one pair per launch.
 #
-# Run it inside WSL/Linux from anywhere:   contracts/scripts/deploy.sh
+# Run it inside WSL/Linux from anywhere:   bash contracts/scripts/deploy.sh
 #
 # Required environment:
 #   ACCOUNT          sncast account name that pays for the deployment
-#   FACTORY_OWNER    address that will own the factory (fee and pause powers)
+#   FACTORY_OWNER    address that will own the factory (fee, asset and pause powers)
 #   FEE_RECIPIENT    address that receives every deploy fee (your treasury)
 # Optional:
 #   NETWORK                 sepolia (default) or devnet. mainnet is refused, see below.
 #   ACCOUNTS_FILE           sncast accounts file (default: sncast's own default location)
-#   DEPLOY_FEE_STRK         deploy fee in STRK, default 10 (hard cap on-chain: 100)
-#   GRADUATION_RAISE_STRK   STRK a curve raises before graduating, default 1000
 #   RPC_URL                 use this RPC instead of sncast's public provider for the network
+#   STRK_DEPLOY_FEE         STRK charged per STRK launch, default 10
+#   STRK_GRADUATION_RAISE   STRK a STRK curve raises before graduating, default 1000
+#   USDC_ADDRESS            native USDC token. Default on sepolia: Circle's testnet USDC.
+#                           Default on devnet: none. Set to "none" to launch STRK-only.
+#   USDC_DEPLOY_FEE         USDC charged per USDC launch, default 15 (USDC costs more)
+#   USDC_GRADUATION_RAISE   USDC a USDC curve raises before graduating, default 10000
 # Flags:
 #   --yes            skip the confirmation prompt
 #   --dry-run        build and estimate only; nothing is sent
+#
+# Fees are capped on-chain at 100 whole units of each asset. The defaults above are testnet
+# numbers: on mainnet, price the fee and the raise in dollars at the time you deploy.
 #
 # No key ever passes through this script: signing is done by sncast with the account you
 # name. Create or import that account yourself (see contracts/README.md).
@@ -29,11 +36,19 @@ export PATH="$HOME/.local/bin:$HOME/.asdf/shims:$PATH"
 # STRK is the same address on Sepolia and mainnet, and devnet predeploys it at that address.
 # Source: https://docs.starknet.io/learn/cheatsheets/chain-info
 STRK_ADDRESS="0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d"
-MAX_FEE_STRK=100
+# Circle's native USDC on Starknet Sepolia (symbol USDC, 6 decimals, checked on chain).
+# Source: https://developers.circle.com/stablecoins/usdc-contract-addresses
+SEPOLIA_USDC_ADDRESS="0x0512feAc6339Ff7889822cb5aA2a86C848e9D392bB0E3E237C008674feeD8343"
+MAX_FEE_UNITS=100
 
 NETWORK="${NETWORK:-sepolia}"
-DEPLOY_FEE_STRK="${DEPLOY_FEE_STRK:-10}"
-GRADUATION_RAISE_STRK="${GRADUATION_RAISE_STRK:-1000}"
+STRK_DEPLOY_FEE="${STRK_DEPLOY_FEE:-10}"
+STRK_GRADUATION_RAISE="${STRK_GRADUATION_RAISE:-1000}"
+USDC_DEPLOY_FEE="${USDC_DEPLOY_FEE:-15}"
+USDC_GRADUATION_RAISE="${USDC_GRADUATION_RAISE:-10000}"
+if [ -z "${USDC_ADDRESS:-}" ]; then
+  if [ "$NETWORK" = "sepolia" ]; then USDC_ADDRESS="$SEPOLIA_USDC_ADDRESS"; else USDC_ADDRESS="none"; fi
+fi
 ASSUME_YES=false
 DRY_RUN=false
 
@@ -41,7 +56,7 @@ for arg in "$@"; do
   case "$arg" in
     --yes) ASSUME_YES=true ;;
     --dry-run) DRY_RUN=true ;;
-    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
@@ -62,13 +77,19 @@ esac
 for v in FACTORY_OWNER FEE_RECIPIENT; do
   [[ "${!v}" =~ ^0x[0-9a-fA-F]{1,64}$ ]] || die "$v must be a 0x-prefixed hex address"
 done
+USE_USDC=true
+if [ "$USDC_ADDRESS" = "none" ]; then
+  USE_USDC=false
+else
+  [[ "$USDC_ADDRESS" =~ ^0x[0-9a-fA-F]{1,64}$ ]] || die "USDC_ADDRESS must be a 0x-prefixed hex address or 'none'"
+fi
 command -v sncast >/dev/null || die "sncast not found (install Starknet Foundry with starkup)"
 command -v scarb >/dev/null || die "scarb not found (install it with starkup)"
 command -v python3 >/dev/null || die "python3 not found"
 
-# --- parameters -> wei ---------------------------------------------------------------------
-to_wei() {
-  python3 - "$1" <<'PY'
+# --- parameters -> smallest units ----------------------------------------------------------
+to_units() { # value decimals
+  python3 - "$1" "$2" <<'PY'
 import sys
 from decimal import Decimal, InvalidOperation
 try:
@@ -77,17 +98,26 @@ except InvalidOperation:
     sys.exit("not a number: " + sys.argv[1])
 if v < 0:
     sys.exit("must not be negative")
-wei = v * 10**18
-if wei != wei.to_integral_value():
-    sys.exit("more than 18 decimal places")
-print(int(wei))
+units = v * 10 ** int(sys.argv[2])
+if units != units.to_integral_value():
+    sys.exit("more than %s decimal places" % sys.argv[2])
+print(int(units))
 PY
 }
-FEE_WEI="$(to_wei "$DEPLOY_FEE_STRK")" || die "bad DEPLOY_FEE_STRK"
-RAISE_WEI="$(to_wei "$GRADUATION_RAISE_STRK")" || die "bad GRADUATION_RAISE_STRK"
-[ "$RAISE_WEI" != "0" ] || die "GRADUATION_RAISE_STRK must be greater than zero"
-python3 -c "import sys; sys.exit(0 if int(sys.argv[1]) <= int(sys.argv[2])*10**18 else 1)" "$FEE_WEI" "$MAX_FEE_STRK" \
-  || die "DEPLOY_FEE_STRK is above the contract's hard cap of $MAX_FEE_STRK STRK"
+check_fee_cap() { # name units decimals
+  python3 -c "import sys; sys.exit(0 if int(sys.argv[1]) <= int(sys.argv[2]) * 10**int(sys.argv[3]) else 1)" "$2" "$MAX_FEE_UNITS" "$3" \
+    || die "$1 is above the contract's hard cap of $MAX_FEE_UNITS whole units"
+}
+STRK_FEE_UNITS="$(to_units "$STRK_DEPLOY_FEE" 18)" || die "bad STRK_DEPLOY_FEE"
+STRK_RAISE_UNITS="$(to_units "$STRK_GRADUATION_RAISE" 18)" || die "bad STRK_GRADUATION_RAISE"
+[ "$STRK_RAISE_UNITS" != "0" ] || die "STRK_GRADUATION_RAISE must be greater than zero"
+check_fee_cap STRK_DEPLOY_FEE "$STRK_FEE_UNITS" 18
+if $USE_USDC; then
+  USDC_FEE_UNITS="$(to_units "$USDC_DEPLOY_FEE" 6)" || die "bad USDC_DEPLOY_FEE"
+  USDC_RAISE_UNITS="$(to_units "$USDC_GRADUATION_RAISE" 6)" || die "bad USDC_GRADUATION_RAISE"
+  [ "$USDC_RAISE_UNITS" != "0" ] || die "USDC_GRADUATION_RAISE must be greater than zero"
+  check_fee_cap USDC_DEPLOY_FEE "$USDC_FEE_UNITS" 6
+fi
 
 # --- sncast flags --------------------------------------------------------------------------
 NET_FLAGS=()
@@ -104,6 +134,20 @@ sncast_json() {
   printf '%s\n' "$out" | grep -E '^\{' | tail -n 1
 }
 jget() { python3 -c "import sys, json; d = json.loads(sys.stdin.read()); print(d.get(sys.argv[1], ''))" "$1"; }
+call_raw() { # contract function [arguments] -> space-separated felts
+  sncast_json sncast --json call "${NET_FLAGS[@]}" --contract-address "$1" --function "$2" ${3:+--arguments "$3"} \
+    | python3 -c "import sys, json; print(' '.join(json.loads(sys.stdin.read())['response_raw']))"
+}
+norm() { python3 -c "import sys; print(hex(int(sys.argv[1], 0)))" "$1"; }
+u256_of() { python3 -c "import sys; print(int(sys.argv[1],0) + (int(sys.argv[2],0) << 128))" "$1" "$2"; }
+
+# A wrong USDC address is the easiest expensive mistake here, so ask the token itself.
+if $USE_USDC; then
+  echo ">> checking USDC token $USDC_ADDRESS"
+  USDC_DECIMALS="$(call_raw "$USDC_ADDRESS" decimals 2>/dev/null || true)"
+  [ "$(norm "${USDC_DECIMALS:-0x0}")" = "0x6" ] \
+    || die "the token at USDC_ADDRESS does not report 6 decimals on $NETWORK (got '${USDC_DECIMALS:-nothing}'). Wrong address or wrong network?"
+fi
 
 # --- confirm -------------------------------------------------------------------------------
 cat <<EOF
@@ -114,9 +158,22 @@ cat <<EOF
   deployer account   $ACCOUNT
   factory owner      $FACTORY_OWNER
   fee recipient      $FEE_RECIPIENT
-  deploy fee         $DEPLOY_FEE_STRK STRK (cap $MAX_FEE_STRK)
-  graduation raise   $GRADUATION_RAISE_STRK STRK
-  STRK token         $STRK_ADDRESS
+
+  quote asset STRK   $STRK_ADDRESS
+    deploy fee       $STRK_DEPLOY_FEE STRK
+    graduation raise $STRK_GRADUATION_RAISE STRK
+EOF
+if $USE_USDC; then
+cat <<EOF
+  quote asset USDC   $USDC_ADDRESS
+    deploy fee       $USDC_DEPLOY_FEE USDC
+    graduation raise $USDC_GRADUATION_RAISE USDC
+EOF
+else
+  echo "  quote asset USDC   not enabled (STRK-only)"
+fi
+cat <<EOF
+
   mode               $($DRY_RUN && echo "dry run, nothing is sent" || echo "LIVE, this sends transactions")
 
 EOF
@@ -160,17 +217,27 @@ if $DRY_RUN; then
 fi
 
 # --- deploy the factory --------------------------------------------------------------------
-# Constructor: owner, strk, fee_recipient, token_class_hash, curve_class_hash, deploy_fee (u256),
-# graduation_raise (u256). u256 values are passed as low, high 128-bit felts.
+# Constructor: owner, fee_recipient, token_class_hash, curve_class_hash, then an array of
+# quote assets: length, and for each one: address, deploy_fee (u256), graduation_raise (u256).
+# u256 values are passed as low, high 128-bit felts.
 u256_felts() { python3 -c "import sys; v=int(sys.argv[1]); print(v & (2**128-1), v >> 128)" "$1"; }
-read -r FEE_LO FEE_HI < <(u256_felts "$FEE_WEI")
-read -r RAISE_LO RAISE_HI < <(u256_felts "$RAISE_WEI")
+QUOTE_ARGS=()
+QUOTE_COUNT=0
+add_quote() { # address fee_units raise_units
+  local flo fhi rlo rhi
+  read -r flo fhi < <(u256_felts "$2")
+  read -r rlo rhi < <(u256_felts "$3")
+  QUOTE_ARGS+=("$1" "$flo" "$fhi" "$rlo" "$rhi")
+  QUOTE_COUNT=$((QUOTE_COUNT + 1))
+}
+add_quote "$STRK_ADDRESS" "$STRK_FEE_UNITS" "$STRK_RAISE_UNITS"
+$USE_USDC && add_quote "$USDC_ADDRESS" "$USDC_FEE_UNITS" "$USDC_RAISE_UNITS"
 
 echo ">> deploying factory"
 DEPLOY_OUT="$(sncast_json sncast "${ACCT_FLAGS[@]}" --json deploy "${NET_FLAGS[@]}" \
   --class-hash "$FACTORY_CLASS" \
-  --constructor-calldata "$FACTORY_OWNER" "$STRK_ADDRESS" "$FEE_RECIPIENT" "$TOKEN_CLASS" "$CURVE_CLASS" \
-  "$FEE_LO" "$FEE_HI" "$RAISE_LO" "$RAISE_HI")" || die "factory deploy failed"
+  --constructor-calldata "$FACTORY_OWNER" "$FEE_RECIPIENT" "$TOKEN_CLASS" "$CURVE_CLASS" \
+  "$QUOTE_COUNT" "${QUOTE_ARGS[@]}")" || die "factory deploy failed"
 FACTORY_ADDRESS="$(printf '%s' "$DEPLOY_OUT" | jget contract_address)"
 TX_HASH="$(printf '%s' "$DEPLOY_OUT" | jget transaction_hash)"
 [ -n "$FACTORY_ADDRESS" ] || die "no contract address in deploy output: $DEPLOY_OUT"
@@ -178,27 +245,33 @@ echo "   TokenFactory  $FACTORY_ADDRESS"
 
 # --- verify what is on chain matches what we asked for ---------------------------------------
 echo ">> verifying"
-call_felts() {
-  sncast_json sncast --json call "${NET_FLAGS[@]}" --contract-address "$FACTORY_ADDRESS" --function "$1" \
-    | python3 -c "import sys, json; print(' '.join(json.loads(sys.stdin.read())['response_raw']))"
-}
-norm() { python3 -c "import sys; print(hex(int(sys.argv[1], 0)))" "$1"; }
 check() { # name, got, want
   [ "$2" = "$3" ] || die "verification failed for $1: on chain $2, expected $3"
   echo "   ok  $1"
 }
-read -r got_fee_lo got_fee_hi <<<"$(call_felts deploy_fee)"
-check deploy_fee "$(python3 -c "import sys; print(int(sys.argv[1],0) + (int(sys.argv[2],0) << 128))" "$got_fee_lo" "$got_fee_hi")" "$FEE_WEI"
-read -r got_raise_lo got_raise_hi <<<"$(call_felts graduation_raise)"
-check graduation_raise "$(python3 -c "import sys; print(int(sys.argv[1],0) + (int(sys.argv[2],0) << 128))" "$got_raise_lo" "$got_raise_hi")" "$RAISE_WEI"
-check fee_recipient "$(norm "$(call_felts fee_recipient)")" "$(norm "$FEE_RECIPIENT")"
-check strk_token "$(norm "$(call_felts strk_token)")" "$(norm "$STRK_ADDRESS")"
-check owner "$(norm "$(call_felts owner)")" "$(norm "$FACTORY_OWNER")"
-check launches_paused "$(call_felts launches_paused)" "0x0"
+check_quote() { # label address fee_units raise_units decimals
+  # quote_config returns: enabled, deploy_fee (lo hi), graduation_raise (lo hi), unit (lo hi)
+  local raw enabled flo fhi rlo rhi ulo uhi
+  raw="$(call_raw "$FACTORY_ADDRESS" quote_config "$2")"
+  read -r enabled flo fhi rlo rhi ulo uhi <<<"$raw"
+  check "$1 enabled" "$(norm "$enabled")" "0x1"
+  check "$1 deploy fee" "$(u256_of "$flo" "$fhi")" "$3"
+  check "$1 graduation raise" "$(u256_of "$rlo" "$rhi")" "$4"
+  check "$1 unit (decimals)" "$(u256_of "$ulo" "$uhi")" "$(python3 -c "print(10**$5)")"
+}
+check_quote STRK "$STRK_ADDRESS" "$STRK_FEE_UNITS" "$STRK_RAISE_UNITS" 18
+$USE_USDC && check_quote USDC "$USDC_ADDRESS" "$USDC_FEE_UNITS" "$USDC_RAISE_UNITS" 6
+check fee_recipient "$(norm "$(call_raw "$FACTORY_ADDRESS" fee_recipient)")" "$(norm "$FEE_RECIPIENT")"
+check owner "$(norm "$(call_raw "$FACTORY_ADDRESS" owner)")" "$(norm "$FACTORY_OWNER")"
+check launches_paused "$(call_raw "$FACTORY_ADDRESS" launches_paused)" "0x0"
 
 # --- record -----------------------------------------------------------------------------------
 mkdir -p deployments
 RECORD="deployments/$NETWORK.json"
+USDC_JSON="None"
+if $USE_USDC; then
+  USDC_JSON="{\"address\": \"$USDC_ADDRESS\", \"decimals\": 6, \"deployFeeUnits\": \"$USDC_FEE_UNITS\", \"graduationRaiseUnits\": \"$USDC_RAISE_UNITS\"}"
+fi
 python3 - "$RECORD" <<PY
 import json, sys, datetime
 record = {
@@ -206,11 +279,12 @@ record = {
     "deployedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     "factory": {"address": "$FACTORY_ADDRESS", "transaction": "$TX_HASH", "classHash": "$FACTORY_CLASS"},
     "classHashes": {"OryvnToken": "$TOKEN_CLASS", "BondingCurve": "$CURVE_CLASS", "TokenFactory": "$FACTORY_CLASS"},
-    "strk": "$STRK_ADDRESS",
     "owner": "$FACTORY_OWNER",
     "feeRecipient": "$FEE_RECIPIENT",
-    "deployFeeWei": "$FEE_WEI",
-    "graduationRaiseWei": "$RAISE_WEI",
+    "quoteTokens": {
+        "STRK": {"address": "$STRK_ADDRESS", "decimals": 18, "deployFeeUnits": "$STRK_FEE_UNITS", "graduationRaiseUnits": "$STRK_RAISE_UNITS"},
+        "USDC": $USDC_JSON,
+    },
 }
 json.dump(record, open(sys.argv[1], "w"), indent=2)
 open(sys.argv[1], "a").write("\n")

@@ -2,23 +2,34 @@
 // token and its bonding curve, collects the deploy fee, and hands every token to its
 // rightful holder (curve and creator). The factory ends the transaction holding nothing.
 //
-// The factory owner can change the deploy fee, the fee recipient, the graduation raise
-// and pause *new* launches. None of that can touch a launch that already exists: curves
-// and tokens have no owner and no upgrade path, and trading never goes through the factory.
+// A creator picks the *quote asset* for the launch (STRK or USDC today; the owner can enable
+// others). The curve is paired with that asset for life: STRK tokens trade in STRK, USDC
+// tokens trade in USDC. Each asset has its own deploy fee, paid in that asset, and its own
+// graduation raise, because the same number means very different money in each.
+//
+// The factory owner can enable or disable quote assets, change their fee and raise, change the
+// fee recipient and pause *new* launches. None of that can touch a launch that already exists:
+// curves and tokens have no owner and no upgrade path, and trading never goes through the
+// factory.
 
 #[starknet::contract]
 pub mod TokenFactory {
     use core::num::traits::Zero;
     use openzeppelin_access::ownable::OwnableComponent;
-    use openzeppelin_interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use openzeppelin_interfaces::erc20::{
+        IERC20Dispatcher, IERC20DispatcherTrait, IERC20MetadataDispatcher,
+        IERC20MetadataDispatcherTrait,
+    };
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
     use starknet::syscalls::deploy_syscall;
-    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address, get_contract_address};
+    use starknet::{
+        ClassHash, ContractAddress, SyscallResultTrait, get_caller_address, get_contract_address,
+    };
     use crate::curve_math;
-    use crate::interfaces::ITokenFactory;
+    use crate::interfaces::{ITokenFactory, QuoteConfig, QuoteInit};
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
 
@@ -32,9 +43,12 @@ pub mod TokenFactory {
     /// 5%) plus a reserve held by the curve for the post-graduation pool.
     pub const CURVE_SUPPLY_BPS: u256 = 8_000;
     pub const MAX_CREATOR_BPS: u16 = 500;
-    /// Hard ceiling on the deploy fee (100 STRK), so a compromised owner key still cannot
-    /// price creators out or turn the fee into a trap.
-    pub const MAX_DEPLOY_FEE: u256 = 100_000_000_000_000_000_000;
+    /// Hard ceiling on any deploy fee: 100 whole units of the quote asset (100 STRK, 100 USDC).
+    /// Even a compromised owner key cannot price creators out or turn the fee into a trap.
+    pub const MAX_DEPLOY_FEE_UNITS: u256 = 100;
+    /// Quote assets must have between 6 and 18 decimals, so the curve keeps enough precision.
+    pub const MIN_QUOTE_DECIMALS: u8 = 6;
+    pub const MAX_QUOTE_DECIMALS: u8 = 18;
     pub const MAX_NAME_LEN: u32 = 50;
     pub const MAX_SYMBOL_LEN: u32 = 10;
 
@@ -42,12 +56,10 @@ pub mod TokenFactory {
     struct Storage {
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
-        strk: ContractAddress,
         fee_recipient: ContractAddress,
         token_class_hash: ClassHash,
         curve_class_hash: ClassHash,
-        deploy_fee: u256,
-        graduation_raise: u256,
+        quotes: Map<ContractAddress, QuoteConfig>,
         launches_paused: bool,
         launch_count: u64,
         curve_of: Map<ContractAddress, ContractAddress>,
@@ -59,9 +71,8 @@ pub mod TokenFactory {
         #[flat]
         OwnableEvent: OwnableComponent::Event,
         LaunchCreated: LaunchCreated,
-        DeployFeeChanged: DeployFeeChanged,
+        QuoteTokenSet: QuoteTokenSet,
         FeeRecipientChanged: FeeRecipientChanged,
-        GraduationRaiseChanged: GraduationRaiseChanged,
         LaunchesPaused: LaunchesPaused,
     }
 
@@ -73,6 +84,7 @@ pub mod TokenFactory {
         #[key]
         pub token: ContractAddress,
         pub curve: ContractAddress,
+        pub quote_token: ContractAddress,
         pub launch_id: u64,
         pub name: ByteArray,
         pub symbol: ByteArray,
@@ -84,21 +96,18 @@ pub mod TokenFactory {
     }
 
     #[derive(Drop, starknet::Event)]
-    pub struct DeployFeeChanged {
-        pub old_fee: u256,
-        pub new_fee: u256,
+    pub struct QuoteTokenSet {
+        #[key]
+        pub quote_token: ContractAddress,
+        pub enabled: bool,
+        pub deploy_fee: u256,
+        pub graduation_raise: u256,
     }
 
     #[derive(Drop, starknet::Event)]
     pub struct FeeRecipientChanged {
         pub old_recipient: ContractAddress,
         pub new_recipient: ContractAddress,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct GraduationRaiseChanged {
-        pub old_raise: u256,
-        pub new_raise: u256,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -110,24 +119,50 @@ pub mod TokenFactory {
     fn constructor(
         ref self: ContractState,
         owner: ContractAddress,
-        strk: ContractAddress,
         fee_recipient: ContractAddress,
         token_class_hash: ClassHash,
         curve_class_hash: ClassHash,
-        deploy_fee: u256,
-        graduation_raise: u256,
+        initial_quotes: Array<QuoteInit>,
     ) {
-        assert(strk.is_non_zero(), 'FACTORY_ZERO_STRK');
         assert(fee_recipient.is_non_zero(), 'FACTORY_ZERO_RECIPIENT');
-        assert(deploy_fee <= MAX_DEPLOY_FEE, 'FACTORY_FEE_TOO_HIGH');
-        assert(graduation_raise > 0, 'FACTORY_ZERO_RAISE');
         self.ownable.initializer(owner);
-        self.strk.write(strk);
         self.fee_recipient.write(fee_recipient);
         self.token_class_hash.write(token_class_hash);
         self.curve_class_hash.write(curve_class_hash);
-        self.deploy_fee.write(deploy_fee);
-        self.graduation_raise.write(graduation_raise);
+        for q in initial_quotes {
+            self.enable_quote(q.token, q.deploy_fee, q.graduation_raise);
+        }
+    }
+
+    #[generate_trait]
+    impl InternalImpl of InternalTrait {
+        /// Validate and store a quote asset as enabled. Reads the asset's decimals from the
+        /// token itself, so the fee cap is "100 whole units" whatever the asset.
+        fn enable_quote(
+            ref self: ContractState,
+            quote_token: ContractAddress,
+            deploy_fee: u256,
+            graduation_raise: u256,
+        ) {
+            assert(quote_token.is_non_zero(), 'FACTORY_ZERO_QUOTE');
+            assert(graduation_raise > 0, 'FACTORY_ZERO_RAISE');
+            let decimals = IERC20MetadataDispatcher { contract_address: quote_token }.decimals();
+            assert(
+                decimals >= MIN_QUOTE_DECIMALS && decimals <= MAX_QUOTE_DECIMALS,
+                'FACTORY_BAD_DECIMALS',
+            );
+            let mut unit: u256 = 1;
+            let mut i: u8 = 0;
+            while i < decimals {
+                unit *= 10;
+                i += 1;
+            };
+            assert(deploy_fee <= MAX_DEPLOY_FEE_UNITS * unit, 'FACTORY_FEE_TOO_HIGH');
+            self
+                .quotes
+                .write(quote_token, QuoteConfig { enabled: true, deploy_fee, graduation_raise, unit });
+            self.emit(QuoteTokenSet { quote_token, enabled: true, deploy_fee, graduation_raise });
+        }
     }
 
     #[abi(embed_v0)]
@@ -137,6 +172,7 @@ pub mod TokenFactory {
             name: ByteArray,
             symbol: ByteArray,
             metadata_uri: ByteArray,
+            quote_token: ContractAddress,
             preset: u8,
             creator_bps: u16,
         ) -> (ContractAddress, ContractAddress) {
@@ -145,20 +181,21 @@ pub mod TokenFactory {
             assert(symbol.len() > 0 && symbol.len() <= MAX_SYMBOL_LEN, 'FACTORY_BAD_SYMBOL');
             assert(preset <= 2, 'FACTORY_BAD_PRESET');
             assert(creator_bps <= MAX_CREATOR_BPS, 'FACTORY_CREATOR_CAP');
+            let config = self.quotes.read(quote_token);
+            assert(config.enabled, 'FACTORY_QUOTE_NOT_ALLOWED');
 
             let creator = get_caller_address();
             let this = get_contract_address();
-            let strk_address = self.strk.read();
-            let raise = self.graduation_raise.read();
-            let fee = self.deploy_fee.read();
+            let raise = config.graduation_raise;
+            let fee = config.deploy_fee;
             let launch_id = self.launch_count.read();
 
-            // 1. Deploy fee: straight from the creator to the fee recipient. It never sits
-            //    in the factory.
+            // 1. Deploy fee: straight from the creator to the fee recipient, in the launch's
+            //    own quote asset. It never sits in the factory.
             if fee > 0 {
-                let strk = IERC20Dispatcher { contract_address: strk_address };
+                let quote_asset = IERC20Dispatcher { contract_address: quote_token };
                 assert(
-                    strk.transfer_from(creator, self.fee_recipient.read(), fee),
+                    quote_asset.transfer_from(creator, self.fee_recipient.read(), fee),
                     'FACTORY_FEE_PULL_FAILED',
                 );
             }
@@ -178,15 +215,15 @@ pub mod TokenFactory {
             let curve_supply = TOTAL_SUPPLY * CURVE_SUPPLY_BPS / curve_math::BPS_DENOMINATOR;
             let creator_amount = TOTAL_SUPPLY * creator_bps.into() / curve_math::BPS_DENOMINATOR;
             let reserved_supply = TOTAL_SUPPLY - curve_supply - creator_amount;
-            let virtual_strk = curve_math::virtual_strk_for_preset(preset, raise);
+            let virtual_quote = curve_math::virtual_quote_for_preset(preset, raise);
 
             let mut curve_calldata: Array<felt252> = array![];
             token_address.serialize(ref curve_calldata);
-            strk_address.serialize(ref curve_calldata);
+            quote_token.serialize(ref curve_calldata);
             creator.serialize(ref curve_calldata);
             curve_supply.serialize(ref curve_calldata);
             reserved_supply.serialize(ref curve_calldata);
-            virtual_strk.serialize(ref curve_calldata);
+            virtual_quote.serialize(ref curve_calldata);
             raise.serialize(ref curve_calldata);
             let (curve_address, _) = deploy_syscall(
                 self.curve_class_hash.read(), launch_id.into(), curve_calldata.span(), false,
@@ -195,7 +232,10 @@ pub mod TokenFactory {
 
             // 4. Distribute. After this the factory holds zero tokens.
             let token = IERC20Dispatcher { contract_address: token_address };
-            assert(token.transfer(curve_address, curve_supply + reserved_supply), 'FACTORY_CURVE_FUND_FAILED');
+            assert(
+                token.transfer(curve_address, curve_supply + reserved_supply),
+                'FACTORY_CURVE_FUND_FAILED',
+            );
             if creator_amount > 0 {
                 assert(token.transfer(creator, creator_amount), 'FACTORY_CREATOR_SEND_FAILED');
             }
@@ -208,6 +248,7 @@ pub mod TokenFactory {
                         creator,
                         token: token_address,
                         curve: curve_address,
+                        quote_token,
                         launch_id,
                         name,
                         symbol,
@@ -222,12 +263,30 @@ pub mod TokenFactory {
             (token_address, curve_address)
         }
 
-        fn set_deploy_fee(ref self: ContractState, fee: u256) {
+        fn set_quote_token(
+            ref self: ContractState,
+            quote_token: ContractAddress,
+            enabled: bool,
+            deploy_fee: u256,
+            graduation_raise: u256,
+        ) {
             self.ownable.assert_only_owner();
-            assert(fee <= MAX_DEPLOY_FEE, 'FACTORY_FEE_TOO_HIGH');
-            let old_fee = self.deploy_fee.read();
-            self.deploy_fee.write(fee);
-            self.emit(DeployFeeChanged { old_fee, new_fee: fee });
+            if enabled {
+                self.enable_quote(quote_token, deploy_fee, graduation_raise);
+            } else {
+                // Disabling keeps the stored fee, raise and unit; it only stops new launches.
+                let old = self.quotes.read(quote_token);
+                self.quotes.write(quote_token, QuoteConfig { enabled: false, ..old });
+                self
+                    .emit(
+                        QuoteTokenSet {
+                            quote_token,
+                            enabled: false,
+                            deploy_fee: old.deploy_fee,
+                            graduation_raise: old.graduation_raise,
+                        },
+                    );
+            }
         }
 
         fn set_fee_recipient(ref self: ContractState, recipient: ContractAddress) {
@@ -238,30 +297,18 @@ pub mod TokenFactory {
             self.emit(FeeRecipientChanged { old_recipient, new_recipient: recipient });
         }
 
-        fn set_graduation_raise(ref self: ContractState, strk_raise: u256) {
-            self.ownable.assert_only_owner();
-            assert(strk_raise > 0, 'FACTORY_ZERO_RAISE');
-            let old_raise = self.graduation_raise.read();
-            self.graduation_raise.write(strk_raise);
-            self.emit(GraduationRaiseChanged { old_raise, new_raise: strk_raise });
-        }
-
         fn set_launches_paused(ref self: ContractState, paused: bool) {
             self.ownable.assert_only_owner();
             self.launches_paused.write(paused);
             self.emit(LaunchesPaused { paused });
         }
 
-        fn deploy_fee(self: @ContractState) -> u256 {
-            self.deploy_fee.read()
+        fn quote_config(self: @ContractState, quote_token: ContractAddress) -> QuoteConfig {
+            self.quotes.read(quote_token)
         }
 
         fn fee_recipient(self: @ContractState) -> ContractAddress {
             self.fee_recipient.read()
-        }
-
-        fn graduation_raise(self: @ContractState) -> u256 {
-            self.graduation_raise.read()
         }
 
         fn launches_paused(self: @ContractState) -> bool {
@@ -274,10 +321,6 @@ pub mod TokenFactory {
 
         fn curve_of(self: @ContractState, token: ContractAddress) -> ContractAddress {
             self.curve_of.read(token)
-        }
-
-        fn strk_token(self: @ContractState) -> ContractAddress {
-            self.strk.read()
         }
 
         fn class_hashes(self: @ContractState) -> (ClassHash, ClassHash) {

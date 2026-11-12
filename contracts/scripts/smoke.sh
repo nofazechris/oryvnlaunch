@@ -13,7 +13,9 @@
 #     RPC_URL=http://127.0.0.1:5050/rpc ACCOUNTS_FILE=devnet-accounts.json scripts/deploy.sh --yes
 #   scripts/smoke.sh
 #
-# Devnet only: it spends the throwaway devnet accounts and refuses any other RPC.
+# Devnet only: it spends the throwaway devnet accounts and refuses any other RPC. Devnet has
+# no USDC, so this exercises the STRK path on a real node; the USDC path (6 decimals) is covered
+# by `snforge test` and, on Sepolia, by launching with Circle's testnet USDC.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -31,7 +33,7 @@ curl -sf "http://127.0.0.1:5050/is_alive" >/dev/null || die "no devnet on 127.0.
 
 FACTORY="$(python3 -c "import json; print(json.load(open('deployments/devnet.json'))['factory']['address'])")"
 FEE_RECIPIENT="$(python3 -c "import json; print(json.load(open('deployments/devnet.json'))['feeRecipient'])")"
-FEE_WEI="$(python3 -c "import json; print(json.load(open('deployments/devnet.json'))['deployFeeWei'])")"
+FEE_WEI="$(python3 -c "import json; print(json.load(open('deployments/devnet.json'))['quoteTokens']['STRK']['deployFeeUnits'])")"
 account_address() {
   python3 -c "import json, sys; d = json.load(open('$ACCOUNTS_FILE')); print(next(iter(d.values()))[sys.argv[1]]['address'])" "$1"
 }
@@ -73,7 +75,7 @@ echo ">> 1. launch (pays the deploy fee)"
 TREASURY_BEFORE="$(balance "$STRK" "$FEE_RECIPIENT")"
 COUNT_BEFORE="$(python3 -c "import sys; print(int(sys.argv[1], 0))" "$(call_raw "$FACTORY" launch_count)")"
 send "$CREATOR" "$STRK" approve "$FACTORY, ${FEE_WEI}_u256" >/dev/null || die "approve fee"
-send "$CREATOR" "$FACTORY" create_launch '"Smoke Test", "SMOKE", "ipfs://smoke", 1_u8, 200_u16' >/dev/null || die "create_launch"
+send "$CREATOR" "$FACTORY" create_launch "\"Smoke Test\", \"SMOKE\", \"ipfs://smoke\", $STRK, 1_u8, 200_u16" >/dev/null || die "create_launch"
 TREASURY_AFTER="$(balance "$STRK" "$FEE_RECIPIENT")"
 COUNT_AFTER="$(python3 -c "import sys; print(int(sys.argv[1], 0))" "$(call_raw "$FACTORY" launch_count)")"
 true_that "$TREASURY_AFTER - $TREASURY_BEFORE == $FEE_WEI" || die "treasury got $(py "$TREASURY_AFTER - $TREASURY_BEFORE"), expected $FEE_WEI"
