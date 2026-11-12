@@ -26,3 +26,14 @@ See the Technical PRD for the authoritative specification. Key invariants:
   page implemented first in `apps/web` to preserve the design PRD aesthetic (Phase 1).
   Stack pinned: Next.js 15, React 19, TypeScript 5.7, Tailwind 3.4, Framer Motion 11,
   Zustand 5. Landing-page data is preview/mock, labelled as not live.
+
+- **2026-11-12** — Contracts: virtual-reserve constant-product curve with Gentle/Standard/Steep
+  presets; creators launch in STRK or USDC, each with its own deploy fee (the platform's revenue,
+  capped on-chain at 100 whole units) and graduation raise; buys freeze at graduation, sells stay
+  open. See `contracts/README.md`.
+- **2026-11-12** — Funding from other chains goes through an existing bridge (Starkzap, Layerswap
+  underneath), never our own, behind our own thin adapter. See `docs/architecture/funding.md`.
+- **2026-11-12** — Data layer: Postgres on Neon, Drizzle, a polling indexer instead of Apibara
+  (testable against devnet/Sepolia with no extra account; Apibara can replace the `ChainSource`
+  later), and a read-only NestJS API. Amounts are exact: `numeric(78,0)` in the database, decimal
+  strings in JSON. See `docs/architecture/data-layer.md`.

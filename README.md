@@ -14,13 +14,15 @@ intelligence and research — it never controls funds or signs transactions.
 launchpad/
 ├── apps/
 │   ├── web/        # Next.js frontend (implemented — landing page live)
-│   ├── api/        # NestJS backend        (planned — Phase 1+)
-│   ├── indexer/    # Apibara event indexer (planned — Phase 4)
-│   └── workers/    # BullMQ background jobs (planned — Phase 4)
-├── contracts/      # Cairo contracts (factory, bonding curve, fees) (planned — Phase 2)
+│   ├── api/        # NestJS read API over the indexed data (implemented, read-only)
+│   ├── indexer/    # Starknet event indexer -> Postgres (implemented, polling)
+│   └── workers/    # BullMQ background jobs (planned)
+├── contracts/      # Cairo contracts: factory, token, bonding curve (implemented, tested)
 ├── services/
 │   └── ai/         # Python AI/analytics — introduced only when the workload needs it
-├── packages/       # ui, shared, config, starknet, validation, types (extracted as needed)
+├── packages/
+│   ├── chain/      # Starknet JSON-RPC client, event decoders, market maths
+│   └── db/         # Postgres schema + migrations (Neon in production)
 ├── infrastructure/ # docker, monitoring, deployment
 └── docs/           # architecture, contracts, api, security
 ```
@@ -29,6 +31,11 @@ Per the PRD, empty services are **not** scaffolded just to match the diagram —
 app/package is introduced when the work reaches it. Directory placeholders document intent.
 
 ## Current status
+
+**Contracts, indexer and API are built and tested; the web app still runs on preview data.**
+The token factory and bonding curve (STRK and USDC) are deployed and rehearsed on a local devnet;
+the indexer and API read them. Nothing is deployed to Sepolia yet, and nothing has run against Neon.
+See `contracts/README.md` and `docs/architecture/data-layer.md`.
 
 **Phase 1 (Foundation) — in progress.** The frontend landing page from the design PRD
 ("oryvnlaunch") is implemented in `apps/web`, preserving the dark editorial aesthetic,
