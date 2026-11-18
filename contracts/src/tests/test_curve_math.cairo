@@ -209,3 +209,77 @@ fn fuzz_usdc_round_trip_never_profits(units_in: u64, sell_pct: u8) {
         assert(q.quote_spent - out <= 10, 'full exit lost too much');
     }
 }
+
+// ------------------------------------------------------------------------------ trading fee
+
+use crate::curve_math::{MAX_TRADE_FEE_BPS, fee_of, net_from_gross, split_fee};
+
+#[test]
+fn one_percent_of_a_round_amount_is_exact() {
+    assert(fee_of(100 * ONE_TOKEN, 100) == ONE_TOKEN, 'one percent of 100');
+    assert(fee_of(50 * ONE_TOKEN, 100) == ONE_TOKEN / 2, 'one percent of 50');
+    assert(fee_of(12_345, 0) == 0, 'zero fee');
+}
+
+#[test]
+fn the_fee_rounds_up_so_a_tiny_trade_still_pays_a_unit() {
+    assert(fee_of(1, 100) == 1, 'one unit pays one unit');
+    assert(fee_of(99, 100) == 1, '99 pays one');
+    assert(fee_of(100, 100) == 1, '100 pays one');
+    assert(fee_of(101, 100) == 2, '101 pays two');
+}
+
+#[test]
+fn the_buyers_budget_converts_to_a_net_amount_that_fits() {
+    // 50.5 spend at a 1% fee is exactly 50 net + 0.5 fee.
+    assert(net_from_gross(505 * ONE_TOKEN / 10, 100) == 50 * ONE_TOKEN, 'exact case');
+    assert(net_from_gross(0, 100) == 0, 'nothing in');
+    assert(net_from_gross(1, 100) == 0, 'cannot afford a unit and fee');
+    assert(net_from_gross(2, 100) == 1, 'a unit and its fee');
+}
+
+#[test]
+fn a_zero_fee_leaves_amounts_alone() {
+    assert(net_from_gross(12_345, 0) == 12_345, 'no fee, no change');
+    assert(fee_of(12_345, 0) == 0, 'no fee');
+}
+
+#[test]
+fn the_split_never_loses_or_creates_a_unit() {
+    let (creator, platform) = split_fee(101, 5_000);
+    assert(creator == 50 && platform == 51, 'platform keeps the odd unit');
+    let (creator, platform) = split_fee(7, 0);
+    assert(creator == 0 && platform == 7, 'all to platform');
+    let (creator, platform) = split_fee(7, 10_000);
+    assert(creator == 7 && platform == 0, 'all to creator');
+}
+
+// Property: whatever the buyer is willing to spend, the net amount plus its fee fits in the budget,
+// and one more unit of net would not.
+#[test]
+#[fuzzer(runs: 512)]
+fn fuzz_net_plus_fee_always_fits_the_budget(gross: u128, fee_seed: u16) {
+    let bps: u16 = fee_seed % (MAX_TRADE_FEE_BPS + 1);
+    let gross: u256 = gross.into();
+    let net = net_from_gross(gross, bps);
+    assert(net + fee_of(net, bps) <= gross, 'over budget');
+    if gross > 0 {
+        // tight: the next unit of net would exceed the budget
+        assert(net + 1 + fee_of(net + 1, bps) > gross, 'budget left unused');
+    }
+}
+
+// Property: the trader never pays less than the curve-side amount on a buy and never receives
+// more than it on a sell, and the split accounts for every unit of the fee.
+#[test]
+#[fuzzer(runs: 512)]
+fn fuzz_fee_never_favours_the_trader_and_the_split_adds_up(amount: u128, fee_seed: u16, share_seed: u16) {
+    let bps: u16 = fee_seed % (MAX_TRADE_FEE_BPS + 1);
+    let share: u16 = share_seed % 10_001;
+    let amount: u256 = amount.into();
+    let fee = fee_of(amount, bps);
+    assert(fee >= amount * bps.into() / 10_000, 'fee rounded down');
+    assert(fee <= amount, 'fee larger than the trade');
+    let (creator, platform) = split_fee(fee, share);
+    assert(creator + platform == fee, 'split lost a unit');
+}

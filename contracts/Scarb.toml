@@ -25,3 +25,14 @@ test = "snforge test"
 
 [tool.scarb]
 allow-prebuilt-plugins = ["snforge_std"]
+
+# Used only by `snforge test --coverage -P coverage`. It adds the debug information the coverage tool
+# needs and turns inlining off so line numbers stay meaningful. The dev and release builds, which are
+# the ones that get deployed, are not affected.
+[profile.coverage]
+inherits = "dev"
+
+[profile.coverage.cairo]
+unstable-add-statements-functions-debug-info = true
+unstable-add-statements-code-locations-debug-info = true
+inlining-strategy = "avoid"

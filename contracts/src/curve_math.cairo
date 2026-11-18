@@ -119,3 +119,44 @@ pub fn quote_sell(k: u256, quote_reserve: u256, token_reserve: u256, tokens_in: 
         0
     }
 }
+
+// ---------------------------------------------------------------------------- trading fee
+//
+// The fee is a share of the curve-side amount of a trade, in basis points (100 = 1%).
+//
+//   buy:  the buyer pays  net + fee_of(net)   and `net` goes into the curve
+//   sell: the curve pays  gross - fee_of(gross)  to the seller; `gross` leaves the curve's reserve
+//
+// The fee is rounded UP, so the trader never gets a fractional unit of discount, and a trade
+// too small to pay a whole unit of fee still pays one. The fee is then split between the token's
+// creator and the platform; the creator's share rounds down, the platform keeps the remainder.
+
+/// Hard ceiling on the trading fee, in basis points (3%). Enforced by the factory and by every
+/// curve, so even a compromised factory owner cannot push it higher.
+pub const MAX_TRADE_FEE_BPS: u16 = 300;
+
+/// Fee on a curve-side amount, rounded up.
+pub fn fee_of(amount: u256, fee_bps: u16) -> u256 {
+    ceil_div(amount * fee_bps.into(), BPS_DENOMINATOR)
+}
+
+/// The largest curve-side amount `net` such that `net + fee_of(net) <= gross`. Used to turn the
+/// buyer's "spend at most this much" into what can actually go into the curve.
+pub fn net_from_gross(gross: u256, fee_bps: u16) -> u256 {
+    let mut net = gross * BPS_DENOMINATOR / (BPS_DENOMINATOR + fee_bps.into());
+    // A guard that cannot fire, and is kept anyway. Rounding the fee up adds less than one unit, and
+    // `net` is already the floor of gross / (1 + fee), so net + fee_of(net) never exceeds `gross`;
+    // the fuzz tests check exactly that. If a future change ever broke the maths, this loop would
+    // step back instead of letting a buyer be charged over their budget.
+    while net > 0 && net + fee_of(net, fee_bps) > gross {
+        net -= 1;
+    };
+    net
+}
+
+/// Split a fee into (creator, platform). The creator's share rounds down; the platform keeps the
+/// remainder, so nothing is ever lost or created by the split.
+pub fn split_fee(fee: u256, creator_share_bps: u16) -> (u256, u256) {
+    let creator = fee * creator_share_bps.into() / BPS_DENOMINATOR;
+    (creator, fee - creator)
+}

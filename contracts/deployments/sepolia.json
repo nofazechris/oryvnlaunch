@@ -1,0 +1,40 @@
+{
+  "network": "sepolia",
+  "deployedAt": "2026-11-15T16:14:35+00:00",
+  "factory": {
+    "address": "0x03b2c34572f3c6ac64eebb4003c0bd82cca354d48fa64cc61cfffe56e2b182b5",
+    "transaction": "0x00daa235fd94284ccedaad9f6fc4943e9e1baba49643e1f2f5ba7ba492eb88fa",
+    "classHash": "0x013bf9f28ca0b59c3f565272b6495154484e87f676ff6b012f044e8927a06e1e",
+    "deployBlock": 18188667
+  },
+  "classHashes": {
+    "OryvnToken": "0x01d304239105092c565aa6099a44a174afe9da9044ec691b5c2f33041d2a5428",
+    "BondingCurve": "0x0726e82b1b90f4adb1b3764b18c8e9fd1adfbecdd2edb7cb4c7530fdbf10a79e",
+    "TokenFactory": "0x013bf9f28ca0b59c3f565272b6495154484e87f676ff6b012f044e8927a06e1e"
+  },
+  "owner": "0x03bf9749DE42f3077A59c478778FeD6e9FdfFFBA8E2338DCb44eFA8C72Fd8C83",
+  "feeRecipient": "0x0576b9e20F68bBCF12a6577107eD0cCc97Fe4DAD386be00483Fbef920A59cD84",
+  "tradeFeeBps": 100,
+  "creatorFeeShareBps": 5000,
+  "defaultQuoteToken": "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+  "quoteTokens": {
+    "STRK": {
+      "address": "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+      "decimals": 18,
+      "deployFeeUnits": "10000000000000000000",
+      "graduationRaiseUnits": "1000000000000000000000"
+    }
+  },
+  "feeAssets": {
+    "STRK": {
+      "address": "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+      "decimals": 18,
+      "deployFeeUnits": "10000000000000000000"
+    },
+    "USDC": {
+      "address": "0x0512feAc6339Ff7889822cb5aA2a86C848e9D392bB0E3E237C008674feeD8343",
+      "decimals": 6,
+      "deployFeeUnits": "2000000"
+    }
+  }
+}

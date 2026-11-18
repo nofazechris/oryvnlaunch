@@ -18,31 +18,37 @@ snforge test
 |---|---|
 | `TokenFactory` | One call (`create_launch`) charges the deploy fee, deploys a token and its curve, and distributes the supply. Ends the call holding nothing. Keeps the list of quote assets and each one's fee and raise. |
 | `OryvnToken` | ERC-20, 1,000,000,000 supply, 18 decimals. No mint, no owner, no pause, no upgrade. |
-| `BondingCurve` | One per launch. Holds the tokens and the quote asset, prices every trade on-chain, pays traders directly. No owner, no admin keys, no upgrade. |
+| `BondingCurve` | One per launch. Holds the tokens and the quote asset, prices every trade on-chain, pays traders directly, and accrues the 1% trading fee for the creator and the platform to claim. No owner, no admin keys, no upgrade. |
 | `curve_math` | Pure pricing functions, unit and fuzz tested on their own, at STRK and USDC scale. |
 
-## Quote assets: STRK or USDC
+## Trading asset and deploy-fee asset
 
-A creator chooses the quote asset when launching, and the token's curve is paired with it for
-life: a STRK launch trades in STRK, a USDC launch trades in USDC. Nothing is converted inside the
-contracts.
+Two different things, kept apart on purpose:
 
-- Each asset has its **own deploy fee, paid in that asset**, and its **own graduation raise**,
-  because "10 STRK" and "10 USDC" are different money. USDC launches are meant to cost more.
-- The factory reads each asset's `decimals()` itself, so the fee cap is "100 whole units" of
-  whichever asset (100 STRK, 100 USDC) and a wrong-decimals token cannot sneak in. Only assets
-  with 6 to 18 decimals are accepted.
-- The owner can list a new asset, change an asset's fee or raise, or disable it. Disabling only
-  stops *new* launches; existing curves keep trading.
-- The curve maths works in the asset's smallest unit and does not know which asset it is.
-  `spot_price` is returned scaled by 1e18 so 6-decimal assets keep their precision.
-- **USDC is issued by Circle and can be paused, blocklisted or upgraded by Circle.** Its Starknet
-  contract has those controls. If Circle freezes an address or pauses the token, payouts in USDC
-  stop with it and the curve cannot work around that. Say so in the interface before a creator
-  or buyer picks USDC. Use Circle's native USDC, not the older bridged "USDC.e".
-- Paying with an asset you don't hold (for example buying a STRK token with USDC) is meant to be
-  a one-click swap bundled in the same wallet transaction by the frontend. It is not contract
-  logic, and it is not built yet.
+- **Every token trades in STRK.** The factory's `default_quote_token` is STRK, and
+  `create_launch_paying_in` always builds a STRK curve. Nothing is converted inside the contracts, and no
+  token trades in USDC.
+- **A creator can pay the one-time deploy fee in STRK or in USDC.** Each fee asset has its own fee
+  (`set_fee_asset`), paid straight from the creator to the fee recipient in that asset. Choosing USDC only
+  changes how the creator pays: the token is still a STRK token.
+
+Why: it keeps trading in one asset (so market caps, rankings and fees are all in STRK and can be shown in
+dollars with one rate), and keeps Circle's pause and blocklist powers away from every trade. The only thing
+USDC can affect is whether a launch paid in USDC goes through.
+
+- The fee is priced **per asset, in dollars you choose**, because "10 STRK" and "2 USDC" are different money
+  and STRK's price moves. The owner reprices a fee asset with `set_fee_asset` as the market moves.
+- The factory reads each asset's `decimals()` itself, so the fee cap is "100 whole units" of whichever asset
+  and a wrong-decimals token cannot sneak in. Only assets with 6 to 18 decimals are accepted.
+- Disabling a fee asset only stops *new* launches paid in it. Existing curves are unaffected.
+- The original `create_launch` (curve and fee in the same asset) is still in the contract, and the curve code
+  is still generic over any asset, but the product does not list USDC as a curve asset, so nothing uses it.
+- `spot_price` is returned scaled by 1e18 so that any asset keeps its precision.
+- **USDC is issued by Circle and can be paused, blocklisted or upgraded by Circle.** If Circle pauses it,
+  launches paid in USDC fail until it is lifted; launches paid in STRK and all trading are unaffected. Use
+  Circle's native USDC, not the older bridged "USDC.e".
+- Paying with an asset you don't hold is meant to be a one-click swap bundled in the same wallet transaction
+  by the frontend. It is not contract logic, and it is not built yet.
 
 ## Decisions
 
@@ -54,27 +60,55 @@ contracts.
   curve's favour, so `x * y >= k` always holds and rounding cannot drain it (fuzz tested).
 - **Supply split:** 80% sold on the curve, 0 to 5% to the creator (`creator_bps`, capped at
   500), the rest held by the curve, untouched, for the post-graduation pool.
-- **Graduation:** when the last curve token is bought, buying freezes and selling stays
-  open. The final buy only charges what the remaining tokens cost.
+- **Graduation is a milestone, not a lock.** When the last curve token is bought, `graduated`
+  is set (once, for good) and `Graduated` is emitted. The trading rules do not change: the curve
+  keeps pricing both ways. While every token is sold there is nothing left to buy, so a buy
+  reverts with `CURVE_SOLD_OUT`; as soon as a holder sells some back, buying works again. Nobody
+  is locked out and nobody is trapped. The final buy only charges what the remaining tokens
+  cost. (An earlier version kept buying switched off after graduation while selling stayed open.
+  That was unfair to later buyers and protected nothing, since sells drained the curve anyway,
+  so it was removed.)
 - **Deploy fee:** paid straight from the creator to the fee recipient (it never sits in the
-  factory). Owner-settable per asset, hard-capped at 100 whole units. This is the platform's
-  revenue. Changing it only affects new launches.
+  factory). Owner-settable per asset, hard-capped at 100 whole units. Changing it only affects new
+  launches.
+- **Trading fee: 1% per trade, half to the creator and half to the platform.** Together with the
+  deploy fee this is where the platform earns, and it gives creators a reason to build a token
+  people trade.
+  - *What it is charged on:* the curve-side amount of the trade. A buyer pays that amount plus 1%;
+    a seller receives that amount minus 1%. It is rounded up, so a tiny trade still pays at least one
+    unit of fee. The price on the curve is not affected: the same tokens cost the same curve amount
+    with or without a fee.
+  - *Where it goes:* it is **accrued** inside the curve, separately from the reserve, and paid out
+    when someone calls `claim_creator_fees()` or `claim_platform_fees()`. Anyone can call either
+    (for example a bot, or the creator's app), but the money can only go to the creator or to the
+    factory's current fee recipient. Trading never sends money to a third party, so a recipient that
+    cannot receive (for example an address Circle has blocklisted for USDC) cannot block anyone's
+    trade. The platform's claim asks the factory who the recipient is at claim time, so the platform
+    can move its treasury and every existing curve follows.
+  - *Limits:* the fee is capped at 3% in the factory **and** in every curve, so even a compromised
+    owner key cannot raise it above that, and a curve's fee is fixed for its whole life. The owner
+    can change the fee and the split for future launches only (`set_trade_fee`).
+  - *The curve always holds exactly its reserve plus the fees it owes, and nothing else* (tested).
 - **Owner powers (factory only):** list/enable/disable quote assets and set their fee and raise,
-  change the fee recipient, and pause *new* launches. Nothing the owner does can touch an
-  existing token or curve, and trading never goes through the factory.
+  set the trading fee and its split (for future launches, capped at 3%), change the fee recipient,
+  and pause *new* launches. Nothing the owner does can touch an existing token or curve, and
+  trading never goes through the factory.
 - **Slippage:** `buy(max_quote_in, min_tokens_out)` and `sell(tokens_in, min_quote_out)`.
-  Both revert if the limit is not met. Quotes (`quote_buy`, `quote_sell`) match the
-  executed trade exactly.
+  `max_quote_in` is the most the buyer pays *in total, fee included*; `min_quote_out` is the least
+  the seller receives *after the fee*. Both revert if the limit is not met. Quotes (`quote_buy`,
+  `quote_sell`) match the executed trade exactly, fee included.
 
 ## Events (for the indexer)
 
 - `TokenFactory::LaunchCreated`: creator, token, curve, quote token, launch id, name, symbol,
-  metadata URI, preset, creator bps, graduation raise, deploy fee.
+  metadata URI, preset, creator bps, graduation raise, deploy fee, trading fee (bps) and the
+  creator's share of it.
 - `TokenFactory::QuoteTokenSet`: an asset was enabled, disabled or repriced.
-- `BondingCurve::TokensBought` / `TokensSold`: trader, amounts in the quote asset's smallest
-  unit, and the reserves *after* the trade, so price and market cap can be derived from the
-  event alone.
+- `BondingCurve::TokensBought` / `TokensSold`: trader, the curve-side amount in the quote asset's
+  smallest unit, the fee, and the reserves *after* the trade, so price and market cap can be
+  derived from the event alone. A buyer paid `quote_in + fee`; a seller received `quote_out - fee`.
 - `BondingCurve::Graduated`.
+- `BondingCurve::FeesClaimed`: who was paid, whether it was the creator's share, and how much.
 
 ## Deploying
 
@@ -103,8 +137,10 @@ bash scripts/deploy.sh
 ```
 
 By default it enables STRK (10 STRK fee, 1,000 STRK raise) and Circle's Sepolia USDC (15 USDC
-fee, 10,000 USDC raise). Change them with `STRK_DEPLOY_FEE`, `STRK_GRADUATION_RAISE`,
-`USDC_DEPLOY_FEE`, `USDC_GRADUATION_RAISE`; set `USDC_ADDRESS=none` for a STRK-only factory. Before
+fee, 10,000 USDC raise), with a 1% trading fee split half and half. Change them with
+`STRK_DEPLOY_FEE`, `STRK_GRADUATION_RAISE`, `USDC_DEPLOY_FEE`, `USDC_GRADUATION_RAISE`,
+`TRADE_FEE_BPS` (100 = 1%, refused above 300) and `CREATOR_FEE_SHARE_BPS` (5000 = half); set
+`USDC_ADDRESS=none` for a STRK-only factory. Before
 sending anything it asks the USDC token for its decimals and refuses if it isn't 6, which catches
 a wrong address or network. It prints a summary and waits for you to type `deploy`. `--dry-run`
 estimates without sending; `--yes` skips the prompt.
@@ -123,7 +159,7 @@ indexer read their addresses from one place.
 bash scripts/devnet.sh start      # terminal 1: local node (public throwaway test keys)
 bash scripts/devnet.sh accounts   # terminal 2: import its accounts into devnet-accounts.json
 # deploy.sh with NETWORK=devnet RPC_URL=http://127.0.0.1:5050/rpc ACCOUNTS_FILE=devnet-accounts.json
-bash scripts/smoke.sh             # launch, buy, sell, graduate and freeze, on a real node
+bash scripts/smoke.sh             # launch, buy, sell, graduate, sell out and reopen, on a real node
 ```
 
 Devnet predeploys STRK at the real address, so the rehearsal uses the same STRK constructor
@@ -135,7 +171,9 @@ the USDC path (6 decimals) is covered by `snforge test`, and on Sepolia by a rea
 - A real-network USDC launch. The USDC path is tested in the simulator and the script checks the
   Sepolia USDC token on chain, but no launch has been run against Circle's contract yet.
 - The swap-to-pay flow (pay with USDC, buy a STRK token, and the reverse).
-- Post-graduation pool creation (the reserved supply and raised assets are not migrated).
+- Post-graduation pool creation (the reserved supply and raised assets are not migrated). Because
+  the curve stays open both ways, whatever the curve holds at migration time is what seeds the
+  pool; the raise is not locked away in the meantime.
 - Independent review of the curve maths before mainnet. The tests are not an audit.
 - Using the real STRK and Circle USDC addresses is a constructor argument: double-check them
   against Starknet's and Circle's docs before any mainnet deploy.
