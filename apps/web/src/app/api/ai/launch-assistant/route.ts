@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callClaude, clientIp, extractJson, rateLimit } from "@/lib/ai/claude";
+import { callClaude, extractJson, guardAi, readJson } from "@/lib/ai/claude";
 
 export const runtime = "nodejs";
 
@@ -88,12 +88,11 @@ function fallback(idea: string): AssistantResult {
 }
 
 export async function POST(req: Request) {
-  if (!rateLimit(clientIp(req))) {
-    return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
-  }
+  const blocked = guardAi(req);
+  if (blocked) return blocked;
   let idea = "";
   try {
-    const body = (await req.json()) as { idea?: unknown };
+    const body = (await readJson(req)) as { idea?: unknown };
     idea = String(body.idea ?? "").trim().slice(0, 400);
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });

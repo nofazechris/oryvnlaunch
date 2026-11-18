@@ -1,34 +1,42 @@
-// Launch Studio constants, validation and curve helpers (ported from Launch.dc.html).
-import { TOKENS } from "./oryvn-data";
+// Launch Studio constants and validation.
 
-/** Card palettes: [primary, light, ink]. */
-export const PAL: [string, string, string][] = [
-  ["#73D9E8", "#B7F0F5", "#062A30"],
-  ["#FF9865", "#FFD2A8", "#3A1404"],
-  ["#568BFF", "#F38FC4", "#140A2E"],
-  ["#C7EA83", "#EAF7C9", "#1C2A06"],
-  ["#B69AFF", "#E6DCFF", "#1E1240"],
-  ["#F38FC4", "#FFD9EC", "#3A0A24"],
-  ["#FF7777", "#FFC2B0", "#3A0A0A"],
-];
-
-export interface CurveTemplate {
-  name: string;
-  desc: string;
-  k: number;
-  start: number;
+export interface LaunchTemplate {
+  key: string;
+  label: string;
+  blurb: string;
+  g: [string, string];
+  ink: string;
 }
 
-export const TEMPLATES: CurveTemplate[] = [
-  { name: "Standard", desc: "Quadratic. Price rises steadily as supply is bought.", k: 2, start: 0.000028 },
-  { name: "Gentle", desc: "Flatter early curve. More room for early buyers.", k: 1.5, start: 0.000035 },
-  { name: "Steep", desc: "Faster price rise. Graduates on fewer trades.", k: 3, start: 0.000019 },
+/** The kinds of token a creator can start from. A kind is a starting point for the AI helper, not a contract setting. */
+export const LAUNCH_TEMPLATES: LaunchTemplate[] = [
+  { key: "meme", label: "Meme coin", blurb: "A community meme with a mascot and a bonding-curve launch.", g: ["#FF9865", "#FFD2A8"], ink: "#3A1404" },
+  { key: "community", label: "Community token", blurb: "A shared token for a group, project or crew.", g: ["#73D9E8", "#B7F0F5"], ink: "#062A30" },
+  { key: "art", label: "Art / collectible", blurb: "A token around an artist, a drop or a collectible.", g: ["#F38FC4", "#FFD9EC"], ink: "#3A0A24" },
+  { key: "utility", label: "Utility token", blurb: "A token that powers access, rewards or a product.", g: ["#B69AFF", "#E6DCFF"], ink: "#1E1240" },
 ];
 
-export const SUPPLIES = [1e8, 1e9, 1e10];
+export interface CurvePreset {
+  id: 0 | 1 | 2;
+  name: string;
+  desc: string;
+  /** Roughly how many times the price multiplies between the first buy and graduation. */
+  multiple: number;
+}
 
-export const GRAD_LABEL = "69,000 STRK";
-export const DEPLOY_FEE = 10;
+/** The three curves the factory offers. The number is the on-chain preset id. */
+export const PRESETS: CurvePreset[] = [
+  { id: 1, name: "Standard", desc: "A balanced curve. The price rises steadily as the supply is bought.", multiple: 9 },
+  { id: 0, name: "Gentle", desc: "A flatter curve with less price swing and more room for early buyers.", multiple: 4 },
+  { id: 2, name: "Steep", desc: "A faster climb. The price moves more on every trade.", multiple: 25 },
+];
+
+/** Total supply of every token. Fixed in the factory. */
+export const TOTAL_SUPPLY = 1_000_000_000;
+/** Share of the supply sold on the curve, in percent. The rest is reserved or goes to the creator. */
+export const CURVE_PERCENT = 80;
+export const MAX_CREATOR_PERCENT = 5;
+export const TRADE_FEE_NOTE = "1% per trade, split between the platform and the creator";
 
 export interface SocialDef {
   key: "web" | "x" | "tg" | "dc";
@@ -45,24 +53,6 @@ export const SOCIALS: SocialDef[] = [
   { key: "dc", label: "Discord", ph: "discord.gg/…", re: /^(https?:\/\/)?discord\.(gg|com\/invite)\/[A-Za-z0-9-]+$/, msg: "Use a discord.gg/ invite" },
 ];
 
-export function fmtS(n: number): string {
-  return n >= 1e9 ? n / 1e9 + "B" : n / 1e6 + "M";
-}
-
 export function urlOk(v: string, re: RegExp): boolean {
   return !v || re.test(v.trim());
-}
-
-export function tickerExists(tick: string): boolean {
-  return TOKENS.some((t) => t.sym === tick);
-}
-
-/** Quadratic-family curve path for the template thumbnails. viewBox 0 0 160 56. */
-export function curvePath(k: number): string {
-  let d = "";
-  for (let i = 0; i <= 20; i++) {
-    const u = i / 20;
-    d += (i ? " L" : "M") + (u * 160).toFixed(1) + "," + (54 - Math.pow(u, k) * 50).toFixed(1);
-  }
-  return d;
 }

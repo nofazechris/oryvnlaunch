@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { contours } from "@/lib/oryvn-data";
+import { contours } from "@/lib/art";
 
 interface ContourProps {
   density: number;

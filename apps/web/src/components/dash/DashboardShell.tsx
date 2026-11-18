@@ -6,6 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useViewportWidth } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/auth-store";
 import { useWalletStore } from "@/lib/wallet-store";
+import { NETWORK, NETWORK_LABEL } from "@/lib/config";
+import { shortAddr } from "@/lib/format";
+import { WalletConnectModal } from "@/components/wallet/WalletConnectModal";
 import { useUiStore } from "@/lib/ui-store";
 import { SearchModal } from "@/components/app/SearchModal";
 import { Icon } from "@/components/ui/Icons";
@@ -24,11 +27,6 @@ const NAV = [
 ];
 const BOTTOM = [{ key: "settings", label: "Settings", href: "/settings", icon: ic(<><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.3 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.4 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.5L5 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.3-1a7 7 0 0 0 1.7 1l.4 2.5h5l.4-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z" /></>) }];
 
-const WALLETS = [
-  { name: "Argent X", color: "linear-gradient(135deg,#FF9865,#FF7777)", initial: "A" },
-  { name: "Braavos", color: "linear-gradient(135deg,#F3B65F,#FFE6BD)", initial: "B" },
-];
-
 export function DashboardShell({ children }: { children: ReactNode }) {
   const w = useViewportWidth();
   const router = useRouter();
@@ -38,8 +36,6 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const hydrateAuth = useAuthStore((s) => s.hydrate);
   const signOut = useAuthStore((s) => s.signOut);
   const wallet = useWalletStore((s) => s.wallet);
-  const connecting = useWalletStore((s) => s.connecting);
-  const connect = useWalletStore((s) => s.connect);
   const disconnect = useWalletStore((s) => s.disconnect);
   const hydrateWallet = useWalletStore((s) => s.hydrate);
 
@@ -76,9 +72,6 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     if (authHydrated && !session) router.replace("/login");
   }, [authHydrated, session, router]);
 
-  useEffect(() => {
-    if (wallet && walletModal) setWalletModal(false);
-  }, [wallet, walletModal]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -166,7 +159,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 </>
               ) : (
                 <>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />{wallet}
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />{shortAddr(wallet)}
                 </>
               )}
             </span>
@@ -183,7 +176,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               <div style={{ position: "absolute", right: 0, top: 50, width: 240, borderRadius: 18, background: "#101010", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 30px 80px rgba(0,0,0,0.6)", padding: 8, zIndex: 70 }}>
                 <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 3, borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 6 }}>
                   <span style={{ fontSize: 13 }}>{session.method === "google" ? session.email : "Wallet account"}</span>
-                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>{connected ? wallet : "No wallet connected"}</span>
+                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>{connected ? shortAddr(wallet) : "No wallet connected"}</span>
                 </div>
                 <Link href="/settings" onClick={() => setAccount(false)} className="lp-menu-item" style={{ display: "block", padding: "10px 12px", borderRadius: 12, fontSize: 14, color: "#e4e4e4" }}>Settings</Link>
                 {connected && <button onClick={() => { disconnect(); setAccount(false); }} className="lp-menu-item" style={{ width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: 12, border: 0, background: "transparent", color: "#e4e4e4", fontSize: 14, cursor: "pointer" }}>Disconnect wallet</button>}
@@ -205,24 +198,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
       {search && <SearchModal onClose={() => setSearch(false)} />}
 
-      {walletModal && (
-        <div onClick={() => setWalletModal(false)} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", display: "grid", placeItems: "center", padding: 18 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, borderRadius: 28, background: "#101010", border: "1px solid rgba(255,255,255,0.1)", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 22, letterSpacing: "-0.02em" }}>Connect wallet</span>
-              <button onClick={() => setWalletModal(false)} aria-label="Close" className="lp-close" style={{ width: 34, height: 34, borderRadius: "50%", border: 0, background: "#191919", color: "#fff", cursor: "pointer" }}>✕</button>
-            </div>
-            <span style={{ fontSize: 13, color: "#A1A1A1", display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />Starknet Mainnet</span>
-            {WALLETS.map((wl) => (
-              <button key={wl.name} onClick={() => connect(wl.name)} className="lp-walletopt" style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 18, border: "1px solid rgba(255,255,255,0.09)", background: "#141414", color: "#fff", cursor: "pointer", textAlign: "left" }}>
-                <span style={{ width: 40, height: 40, borderRadius: 12, background: wl.color, display: "grid", placeItems: "center", fontWeight: 700, color: "#050505" }}>{wl.initial}</span>
-                <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontWeight: 600, fontSize: 15 }}>{wl.name}</span><span style={{ fontSize: 12, color: "#A1A1A1" }}>{connecting === wl.name ? "Approve the connection in your wallet…" : "Browser extension"}</span></span>
-              </button>
-            ))}
-            <span style={{ fontSize: 12, color: "#696969", lineHeight: 1.5 }}>Preview: connection is simulated. Every transaction needs your approval in the wallet.</span>
-          </div>
-        </div>
-      )}
+      {walletModal && <WalletConnectModal onClose={() => setWalletModal(false)} />}
     </div>
   );
 }

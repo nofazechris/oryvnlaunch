@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { TOKENS, view } from "@/lib/oryvn-data";
+import { useLaunches } from "@/lib/useApi";
 import { TokenAvatar } from "@/components/ui/TokenAvatar";
 
 export function SearchModal({ onClose }: { onClose: () => void }) {
@@ -15,12 +15,13 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
   }, []);
 
   const query = q.trim().toLowerCase();
+  const { data, error, loading } = useLaunches({ sort: "newest" }, 15_000);
   const results = useMemo(() => {
-    const all = TOKENS.map((t, i) => view(t, i));
+    const all = data?.tokens ?? [];
     return all
-      .filter((t) => !query || [t.name, t.sym, t.addr, t.creator].some((x) => x.toLowerCase().includes(query)))
+      .filter((t) => !query || [t.name, t.sym, t.addr].some((x) => x.toLowerCase().includes(query)))
       .slice(0, query ? 8 : 5);
-  }, [query]);
+  }, [data, query]);
 
   return (
     <div
@@ -36,25 +37,27 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
             <circle cx="11" cy="11" r="7" />
             <path d="m20 20-3.5-3.5" />
           </svg>
-          <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tokens, tickers, contract addresses, creators" style={{ flex: 1, minWidth: 0, background: "transparent", border: 0, outline: "none", color: "#fff", fontSize: 17 }} />
+          <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tokens, tickers or contract addresses" maxLength={80} autoComplete="off" spellCheck={false} style={{ flex: 1, minWidth: 0, background: "transparent", border: 0, outline: "none", color: "#fff", fontSize: 17 }} />
           <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 11, color: "#696969", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, padding: "3px 7px" }}>esc</span>
         </div>
         <div style={{ maxHeight: "min(60vh,460px)", overflowY: "auto", padding: 8 }}>
           <span style={{ display: "block", padding: "8px 12px", fontSize: 11, color: "#696969", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            {query ? "Results" : "Trending now"}
+            {query ? "Results" : "Latest launches"}
           </span>
           {results.map((t) => (
-            <Link key={t.sym} href={t.href} onClick={onClose} className="lp-searchrow" style={{ display: "grid", gridTemplateColumns: "40px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "10px 12px", borderRadius: 14, color: "#fff", textDecoration: "none" }}>
-              <TokenAvatar sym={t.sym} bg={t.bg} ink={t.ink} size={40} />
+            <Link key={t.addr} href={t.href} onClick={onClose} className="lp-searchrow" style={{ display: "grid", gridTemplateColumns: "40px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "10px 12px", borderRadius: 14, color: "#fff", textDecoration: "none" }}>
+              <TokenAvatar sym={t.addr} bg={t.bg} ink={t.ink} size={40} src={t.imageUrl} />
               <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{t.name} <span style={{ color: "#696969", fontWeight: 500 }}>${t.sym}</span></span>
-                <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 11, color: "#696969", overflow: "hidden", textOverflow: "ellipsis" }}>{t.addrShort} · by {t.creator}</span>
+                <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 11, color: "#696969", overflow: "hidden", textOverflow: "ellipsis" }}>{t.addrShort}</span>
               </span>
               <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 12, color: t.chgColor }}>{t.chgStr}</span>
             </Link>
           ))}
           {results.length === 0 && (
-            <div style={{ padding: "36px 12px", textAlign: "center", color: "#A1A1A1", fontSize: 14 }}>No tokens match “{q}”.</div>
+            <div style={{ padding: "36px 12px", textAlign: "center", color: "#A1A1A1", fontSize: 14 }}>
+              {error && !data ? "Can't reach the data service." : loading ? "Loading…" : query ? `No tokens match “${q}”.` : "Nothing has launched yet."}
+            </div>
           )}
         </div>
       </div>

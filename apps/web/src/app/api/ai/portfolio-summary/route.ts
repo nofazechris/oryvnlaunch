@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callClaude, clientIp, rateLimit } from "@/lib/ai/claude";
+import { callClaude, guardAi, readJson } from "@/lib/ai/claude";
 
 export const runtime = "nodejs";
 
@@ -8,35 +8,47 @@ const SYSTEM_PROMPT =
   "Observations only: biggest position, concentration, notable moves. " +
   'No advice, no predictions, no "should".';
 
+// What the Portfolio screen sends: positions from this wallet's own trades, each valued in its own quote
+// asset (STRK and USDC are never added together).
 interface Position {
-  t: string;
-  valueSTRK: number;
-  costSTRK: number;
-  chg24h: number;
-  bonding: number;
+  token: string;
+  asset?: string;
+  tokensHeld?: number;
+  approxValue?: number | null;
+  bondingPct?: number | null;
+  change24hPct?: number | null;
+}
+interface PortfolioInput {
+  created?: number;
+  trades?: number;
+  positions?: Position[];
 }
 
-function fallback(portfolio: { totalSTRK?: number; idleSTRK?: number; positions?: Position[] }): string {
-  const positions = (portfolio.positions ?? []).slice().sort((a, b) => b.valueSTRK - a.valueSTRK);
-  if (!positions.length) return "This wallet has no token positions yet — only idle STRK.";
-  const invested = positions.reduce((a, b) => a + b.valueSTRK, 0);
-  const top = positions[0]!;
-  const conc = invested ? Math.round((top.valueSTRK / invested) * 100) : 0;
-  const mover = positions.slice().sort((a, b) => Math.abs(b.chg24h) - Math.abs(a.chg24h))[0]!;
-  return (
-    `This wallet holds ${positions.length} token${positions.length === 1 ? "" : "s"} worth about ${invested.toFixed(1)} STRK, plus ${(portfolio.idleSTRK ?? 0)} STRK idle. ` +
-    `Its biggest position is $${top.t} at ${top.valueSTRK.toFixed(1)} STRK — roughly ${conc}% of the token value, so it's fairly concentrated. ` +
-    `The largest 24h move is $${mover.t} at ${mover.chg24h > 0 ? "+" : ""}${mover.chg24h}%.`
-  );
+function fallback(portfolio: PortfolioInput): string {
+  const positions = portfolio.positions ?? [];
+  const created = portfolio.created ? ` It has launched ${portfolio.created} token${portfolio.created === 1 ? "" : "s"}.` : "";
+  if (!positions.length) return `This wallet has no open token positions from its trades here.${created}`;
+  const byAsset = new Map<string, Position[]>();
+  for (const p of positions) byAsset.set(p.asset ?? "?", [...(byAsset.get(p.asset ?? "?") ?? []), p]);
+  const parts: string[] = [];
+  for (const [asset, list] of byAsset) {
+    const priced = list.filter((p) => typeof p.approxValue === "number");
+    const total = priced.reduce((a, p) => a + (p.approxValue ?? 0), 0);
+    const top = priced.slice().sort((a, b) => (b.approxValue ?? 0) - (a.approxValue ?? 0))[0];
+    parts.push(
+      `${list.length} token${list.length === 1 ? "" : "s"} paired with ${asset}` +
+        (top && total > 0 ? `, worth about ${total.toFixed(2)} ${asset}, the biggest being $${top.token} at ${Math.round(((top.approxValue ?? 0) / total) * 100)}% of that` : ""),
+    );
+  }
+  return `This wallet holds ${parts.join("; and ")}. Amounts in different assets are separate and are not added together.${created}`;
 }
 
 export async function POST(req: Request) {
-  if (!rateLimit(clientIp(req))) {
-    return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
-  }
-  let portfolio: { totalSTRK?: number; idleSTRK?: number; positions?: Position[] } = {};
+  const blocked = guardAi(req);
+  if (blocked) return blocked;
+  let portfolio: PortfolioInput = {};
   try {
-    const body = (await req.json()) as { portfolio?: unknown };
+    const body = (await readJson(req)) as { portfolio?: unknown };
     portfolio = (body.portfolio ?? {}) as typeof portfolio;
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });

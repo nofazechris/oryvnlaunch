@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { topLaunched, view } from "@/lib/oryvn-data";
+import { useStrkUsd, useTopLaunches } from "@/lib/useApi";
+import { usdOr } from "@/lib/format";
 import { Reveal } from "./Reveal";
 import { Contour } from "./Contour";
 import { TokenAvatar } from "@/components/ui/TokenAvatar";
@@ -13,9 +14,11 @@ const SLOT_GRADS = [
 ];
 
 export function TopLaunches() {
-  const launched = topLaunched(); // real platform launches, ranked by market cap (empty pre-launch)
-  const hasLaunches = launched.length > 0;
-  const ranked = launched.slice(0, 3).map((t, i) => view(t, i));
+  const strkUsd = useStrkUsd();
+  const { data, error } = useTopLaunches(3); // real launches, ranked by market cap in one asset
+  const ranked = data?.tokens ?? [];
+  const unit = data?.asset ?? "STRK";
+  const hasLaunches = ranked.length > 0;
   const lead = ranked[0];
 
   return (
@@ -23,7 +26,7 @@ export function TopLaunches() {
       <Reveal style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
         <h2 style={{ margin: 0, fontWeight: 400, fontSize: "clamp(40px,5vw,64px)", letterSpacing: "-0.04em", lineHeight: 1 }}>Top launches.</h2>
         <p style={{ margin: 0, color: "#A1A1A1", fontSize: 16, maxWidth: 560 }}>
-          The most valuable tokens launched on oryvnlaunch, ranked by market cap. {hasLaunches ? "Updated from on-chain data." : "The board is open. Nothing has launched yet."}
+          The most valuable tokens launched on oryvnlaunch, ranked by market cap. {error && !data ? "The board will load once the data service is reachable." : hasLaunches ? "Updated from on-chain data." : "The board is open. Nothing has launched yet."}
         </p>
       </Reveal>
 
@@ -37,7 +40,7 @@ export function TopLaunches() {
             <span style={{ width: 84, height: 84, flexShrink: 0, borderRadius: 26, display: "grid", placeItems: "center", background: "conic-gradient(from 200deg,#73D9E8,#B69AFF,#F38FC4,#FF9865,#73D9E8)", color: "#050505", fontFamily: "var(--font-geist-mono),monospace", fontWeight: 600, fontSize: 34, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>#1</span>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={{ fontSize: "clamp(26px,3vw,36px)", letterSpacing: "-0.03em", lineHeight: 1.05 }}>{lead ? lead.name : "The #1 spot is open."}</span>
-              <span style={{ fontSize: 14, color: "#A1A1A1" }}>{lead ? `$${lead.sym} · ${lead.mcapStr} STRK market cap` : "Launch the first token and top the board."}</span>
+              <span style={{ fontSize: 14, color: "#A1A1A1" }}>{lead ? `$${lead.sym} · ${usdOr(lead.mcap, unit, strkUsd, `${lead.mcapStr} ${unit}`)} market cap` : "Launch the first token and top the board."}</span>
             </div>
           </div>
           <p style={{ margin: 0, color: "#cfcfcf", fontSize: 15, lineHeight: 1.6, maxWidth: 460 }}>
@@ -59,7 +62,7 @@ export function TopLaunches() {
               <div key={i} style={{ display: "grid", gridTemplateColumns: "28px 44px 1fr auto", gap: 12, alignItems: "center", padding: "12px 14px", borderRadius: 16, background: "#0d0d0d", border: t ? "1px solid rgba(255,255,255,0.06)" : "1px dashed rgba(255,255,255,0.14)" }}>
                 <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 14, color: i === 0 ? "#fff" : "#696969" }}>{i + 1}</span>
                 {t ? (
-                  <TokenAvatar sym={t.sym} bg={t.bg} ink={t.ink} size={44} />
+                  <Link href={t.href} style={{ display: "flex" }}><TokenAvatar sym={t.addr} bg={t.bg} ink={t.ink} size={44} src={t.imageUrl} /></Link>
                 ) : (
                   <span style={{ width: 44, height: 44, borderRadius: 14, background: SLOT_GRADS[i], opacity: i === 0 ? 0.5 : 1, border: i === 0 ? "0" : "1px dashed rgba(255,255,255,0.14)" }} />
                 )}
@@ -69,11 +72,11 @@ export function TopLaunches() {
                 </span>
                 {t ? (
                   <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                    <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 13 }}>{t.mcapStr} STRK</span>
+                    <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 13 }}>{usdOr(t.mcap, unit, strkUsd, `${t.mcapStr} ${unit}`)}</span>
                     <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 12, color: t.chgColor }}>{t.chgStr}</span>
                   </span>
                 ) : (
-                  <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 12, color: "#4a4a4a" }}>— STRK</span>
+                  <span style={{ fontFamily: "var(--font-geist-mono),monospace", fontSize: 12, color: "#4a4a4a" }}>— {unit}</span>
                 )}
               </div>
             );

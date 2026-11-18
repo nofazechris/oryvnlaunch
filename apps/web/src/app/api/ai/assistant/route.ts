@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callClaude, clientIp, rateLimit } from "@/lib/ai/claude";
+import { callClaude, guardAi, readJson } from "@/lib/ai/claude";
 
 export const runtime = "nodejs";
 
@@ -20,32 +20,34 @@ function buildSystem(context: unknown): string {
 
 function fallback(context: unknown, question: string): string {
   const ctx = (context ?? {}) as {
-    token?: { name?: string; ticker?: string; bondingPct?: number; holders?: number };
-    platform?: { graduationSTRK?: number; tradeFee?: string; deployFee?: string; creatorCap?: string };
+    token?: { name?: string; ticker?: string; bondingPct?: number; quoteAsset?: string };
+    bonding?: { progressPct?: number; graduated?: boolean };
+    platform?: { tradeFee?: string; deployFee?: string; creatorCap?: string };
   };
   const q = question.toLowerCase();
   if (ctx.token) {
     const t = ctx.token;
-    return `Here's what the indexed data shows for ${t.name ?? "this token"} ($${t.ticker ?? "?"}): bonding is at ${t.bondingPct ?? "?"}% and it has ${t.holders ?? "?"} holders. I answer from on-chain and platform data only — I can't predict price or give buy/sell advice, and I can't trade or move funds.`;
+    const pct = ctx.bonding?.progressPct ?? t.bondingPct;
+    const state = ctx.bonding?.graduated ? "it has graduated" : `its curve is ${pct ?? "?"}% of the way to graduation`;
+    return `Here's what the indexed data shows for ${t.name ?? "this token"} ($${t.ticker ?? "?"}): ${state}${t.quoteAsset ? `, and it trades against ${t.quoteAsset}` : ""}. I answer from on-chain and platform data only. I can't predict price or give buy/sell advice, and I can't trade or move funds.`;
   }
   const pf = ctx.platform;
   if (q.includes("fee")) {
     return `Fees: deploying a token costs ${pf?.deployFee ?? "a small fee"}, and each bonding-curve trade has a ${pf?.tradeFee ?? "1%"} fee. The creator allocation is capped at ${pf?.creatorCap ?? "5%"}. I answer from platform data only and can't trade or move funds.`;
   }
   if (q.includes("graduat")) {
-    return `Graduation: when a token's bonding-curve reserve reaches ${pf?.graduationSTRK ? pf.graduationSTRK.toLocaleString() + " STRK" : "the threshold"}, curve trading closes and liquidity moves to a DEX. It's enforced on-chain. I can't predict when any specific token graduates.`;
+    return "Graduation: when a token's curve raises its graduation amount, the token is marked graduated. It is a milestone, not a lock: buying and selling on the curve continue afterwards, and there is no DEX pool yet. I can't predict when any specific token graduates.";
   }
   return "I answer from indexed platform and on-chain data. I can't trade, sign, move funds, or predict prices. Ask me about trending tokens, how fees or graduation work, or a token's bonding progress and holders.";
 }
 
 export async function POST(req: Request) {
-  if (!rateLimit(clientIp(req))) {
-    return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
-  }
+  const blocked = guardAi(req);
+  if (blocked) return blocked;
   let messages: ChatMessage[] = [];
   let context: unknown = {};
   try {
-    const body = (await req.json()) as { messages?: unknown; context?: unknown };
+    const body = (await readJson(req)) as { messages?: unknown; context?: unknown };
     context = body.context ?? {};
     messages = (Array.isArray(body.messages) ? body.messages : [])
       .slice(-10)

@@ -1,31 +1,39 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useViewportWidth } from "@/lib/hooks";
 import { useWalletStore } from "@/lib/wallet-store";
-import { ME, TOKENS, activity, ago, bySym, hash, view, type ActivityItem } from "@/lib/oryvn-data";
+import { paletteFor } from "@/lib/art";
+import { EXPLORER_URL } from "@/lib/config";
+import { ago, amountLabel, shortAddr } from "@/lib/format";
+import type { ApiActivity } from "@/lib/api";
+import { useActivity, useLaunches } from "@/lib/useApi";
 import { TokenAvatar } from "@/components/ui/TokenAvatar";
+import { explorerTx } from "@/lib/safe";
 
-type Kind = "Buy" | "Sell" | "Launch" | "Deploy";
-interface Row extends Omit<ActivityItem, "kind"> {
-  kind: Kind;
-  id?: string;
-}
+type Kind = ApiActivity["kind"];
 
-const KC: Record<Kind, [string, string]> = {
-  Buy: ["rgba(85,214,154,0.12)", "#55D69A"],
-  Sell: ["rgba(255,104,104,0.12)", "#FF6868"],
-  Launch: ["rgba(115,217,232,0.12)", "#73D9E8"],
-  Deploy: ["rgba(182,154,255,0.12)", "#B69AFF"],
+const KC: Record<Kind, [string, string, string]> = {
+  buy: ["rgba(85,214,154,0.12)", "#55D69A", "Buy"],
+  sell: ["rgba(255,104,104,0.12)", "#FF6868", "Sell"],
+  launch: ["rgba(115,217,232,0.12)", "#73D9E8", "Launch"],
+  graduation: ["rgba(182,154,255,0.12)", "#B69AFF", "Graduation"],
 };
-const FILTERS: Record<string, [string, (a: Row) => boolean]> = {
+const FILTERS: Record<string, [string, (a: ApiActivity) => boolean]> = {
   all: ["All", () => true],
-  launch: ["Launches", (a) => a.kind === "Launch"],
-  buy: ["Buys", (a) => a.kind === "Buy"],
-  sell: ["Sells", (a) => a.kind === "Sell"],
-  deploy: ["Deployments", (a) => a.kind === "Deploy"],
+  launch: ["Launches", (a) => a.kind === "launch"],
+  buy: ["Buys", (a) => a.kind === "buy"],
+  sell: ["Sells", (a) => a.kind === "sell"],
+  graduation: ["Graduations", (a) => a.kind === "graduation"],
 };
+
+function amountText(a: ApiActivity): string {
+  if (a.kind === "graduation") return "Curve filled";
+  if (a.amount === null) return "Curve opened";
+  if (a.kind === "launch") return `${amountLabel(a.amount, a.quote)} deploy fee`;
+  return amountLabel(a.amount, a.quote);
+}
 
 export function Activity() {
   const w = useViewportWidth();
@@ -34,65 +42,36 @@ export function Activity() {
   const [tab, setTab] = useState("all");
   const [scope, setScope] = useState<"all" | "mine">("all");
   const [live, setLive] = useState(true);
-  const [extra, setExtra] = useState<Row[]>([]);
-  const liveRef = useRef(true);
-  const nRef = useRef(0);
+  const [frozen, setFrozen] = useState<ApiActivity[] | undefined>(undefined);
 
   useEffect(() => hydrate(), [hydrate]);
-  useEffect(() => {
-    liveRef.current = live;
-  }, [live]);
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (!liveRef.current) return;
-      const base = activity(1, 900 + nRef.current)[0]!;
-      nRef.current += 1;
-      const fresh: Row = { ...base, kind: base.kind as Kind, t: 0, status: "pending", id: "x" + nRef.current };
-      setExtra((prev) => [fresh, ...prev.map((x) => ({ ...x, status: "confirmed" as const, t: x.t + 4 }))].slice(0, 20));
-    }, 4000);
-    return () => clearInterval(id);
-  }, []);
+  const launches = useLaunches({ sort: "newest" }, 15_000);
+  const imageOf = new Map((launches.data?.tokens ?? []).map((t) => [t.addr, t.imageUrl]));
+  const mine = scope === "mine";
+  const { data, error, loading } = useActivity(mine ? { wallet: wallet ?? undefined, limit: 100 } : { limit: 100 }, !mine || !!wallet);
 
   const mono = "var(--font-geist-mono),monospace";
   const wide = w >= 820;
 
-  let all: Row[] = [
-    ...extra,
-    ...activity(40, 11).map((a) => ({ ...a, kind: a.kind as Kind, t: a.t + 6, status: "confirmed" as const })),
-  ];
-  all = all.map((a) => (a.kind === "Launch" && hash(a.wallet) % 2 ? { ...a, kind: "Deploy" as Kind } : a));
-  if (scope === "mine") {
-    all = wallet ? all.filter((_, i) => i % 4 === 0).map((a) => ({ ...a, wallet: ME.addr })) : [];
-  }
+  // "Paused" freezes the list on screen; the feed keeps loading underneath.
+  const all: ApiActivity[] = (live ? data : (frozen ?? data)) ?? [];
+  const list = all.filter(FILTERS[tab]![1]).slice(0, 60);
+  const cols = wide ? "minmax(0,1.6fr) 110px 1.2fr 1fr 90px" : "minmax(0,1.4fr) 80px 1fr 70px";
 
-  const list = all.filter(FILTERS[tab]![1]).slice(0, 40);
+  const togglelive = () => {
+    if (live) setFrozen(data);
+    setLive((v) => !v);
+  };
 
-  const cols = wide ? "minmax(0,1.6fr) 110px 1fr 1fr 110px 90px" : "minmax(0,1.4fr) 80px 1fr 70px";
-
-  const items = list.map((a) => {
-    const i = bySym(a.sym);
-    const t = view(TOKENS[i]!, i);
-    const pend = a.status === "pending";
-    const amt = a.kind === "Launch" ? "Curve opened" : a.kind === "Deploy" ? "10 STRK fee" : `${a.strk} STRK`;
-    return {
-      key: a.id ?? `${a.sym}-${a.t}-${a.wallet}`,
-      t,
-      kind: a.kind,
-      kBg: KC[a.kind][0],
-      kColor: KC[a.kind][1],
-      amt,
-      wallet: a.wallet,
-      time: a.t < 5 ? "now" : ago(a.t).replace(" ago", ""),
-      status: pend ? "Pending" : "Confirmed",
-      stColor: pend ? "#F3B65F" : "#55D69A",
-      stAnim: pend ? "oc-blink 1s infinite" : "none",
-      anim: a.id && a.t === 0 ? "oc-in 1.6s ease" : "none",
-    };
-  });
-
-  const emptyTitle = scope === "mine" && !wallet ? "Connect a wallet to see your activity" : "Nothing here yet";
-  const emptyBody = scope === "mine" && !wallet ? "Your buys, sells and launches will show up here." : "New activity appears as it confirms on Starknet.";
+  const down = !!error && !data;
+  const emptyTitle = mine && !wallet ? "Connect a wallet to see your activity" : down ? "Can't reach the data service" : loading ? "Loading…" : "Nothing here yet";
+  const emptyBody =
+    mine && !wallet
+      ? "Your buys, sells and launches will show up here."
+      : down
+        ? "The feed will fill in as soon as it is back."
+        : "New activity appears as it confirms on Starknet.";
 
   return (
     <main style={{ maxWidth: 1200, margin: "0 auto", padding: "clamp(36px,5vw,72px) clamp(18px,5vw,64px) 140px", display: "flex", flexDirection: "column", gap: 24 }}>
@@ -102,7 +81,7 @@ export function Activity() {
           <p style={{ margin: 0, color: "#A1A1A1", fontSize: 16 }}>Every launch, buy and sell on the platform, as it lands on Starknet.</p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={() => setLive((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, height: 40, padding: "0 16px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "#fff", fontSize: 13, cursor: "pointer" }}>
+          <button onClick={togglelive} style={{ display: "flex", alignItems: "center", gap: 8, height: 40, padding: "0 16px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "#fff", fontSize: 13, cursor: "pointer" }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: live ? "#55D69A" : "#696969", animation: live ? "oc-blink 1.4s infinite" : "none" }} />
             {live ? "Live" : "Paused"}
           </button>
@@ -123,28 +102,32 @@ export function Activity() {
       </div>
 
       <div style={{ borderRadius: 28, background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.08)", padding: 8 }}>
-        {items.map((a) => (
-          <div key={a.key} className="lp-list-row" style={{ display: "grid", gridTemplateColumns: cols, gap: 14, alignItems: "center", padding: "12px 14px", borderRadius: 16, animation: a.anim }}>
-            <Link href={a.t.href} style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-              <TokenAvatar sym={a.t.sym} bg={a.t.bg} ink={a.t.ink} size={44} />
-              <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                <span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.t.name}</span>
-                <span style={{ fontSize: 12, color: "#696969" }}>${a.t.sym}</span>
-              </span>
-            </Link>
-            <span style={{ justifySelf: "start", padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600, background: a.kBg, color: a.kColor }}>{a.kind}</span>
-            <span style={{ fontFamily: mono, fontSize: 13 }}>{a.amt}</span>
-            {wide && <span style={{ fontFamily: mono, fontSize: 12, color: "#A1A1A1" }}>{a.wallet}</span>}
-            {wide && (
-              <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: a.stColor }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: a.stColor, animation: a.stAnim }} />
-                {a.status}
-              </span>
-            )}
-            <a href="#" style={{ justifySelf: "end", fontSize: 12, color: "#696969", whiteSpace: "nowrap" }}>{a.time} ↗</a>
-          </div>
-        ))}
-        {items.length === 0 && (
+        {list.map((a, i) => {
+          const [kBg, kColor, kLabel] = KC[a.kind];
+          const [primary, light, ink] = paletteFor(a.token);
+          const when = ago(a.time).replace(" ago", "");
+          const txUrl = explorerTx(a.txHash);
+          return (
+            <div key={`${a.txHash ?? a.kind}-${a.token}-${a.time}-${i}`} className="lp-list-row" style={{ display: "grid", gridTemplateColumns: cols, gap: 14, alignItems: "center", padding: "12px 14px", borderRadius: 16 }}>
+              <Link href={`/token?t=${a.token}`} style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+                <TokenAvatar sym={a.token} bg={`linear-gradient(150deg, ${light}, ${primary})`} ink={ink} size={44} src={imageOf.get(a.token)} />
+                <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</span>
+                  <span style={{ fontSize: 12, color: "#696969" }}>${a.symbol}</span>
+                </span>
+              </Link>
+              <span style={{ justifySelf: "start", padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600, background: kBg, color: kColor }}>{kLabel}</span>
+              <span style={{ fontFamily: mono, fontSize: 13 }}>{amountText(a)}</span>
+              {wide && <span style={{ fontFamily: mono, fontSize: 12, color: "#A1A1A1" }}>{a.wallet ? shortAddr(a.wallet) : "—"}</span>}
+              {txUrl ? (
+                <a href={txUrl} target="_blank" rel="noreferrer" style={{ justifySelf: "end", fontSize: 12, color: "#696969", whiteSpace: "nowrap" }}>{when} ↗</a>
+              ) : (
+                <span style={{ justifySelf: "end", fontSize: 12, color: "#696969", whiteSpace: "nowrap" }}>{when}</span>
+              )}
+            </div>
+          );
+        })}
+        {list.length === 0 && (
           <div style={{ padding: "70px 20px", textAlign: "center", display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
             <span style={{ width: 64, height: 64, borderRadius: "50%", border: "1px dashed rgba(255,255,255,0.25)" }} />
             <span style={{ fontSize: 20 }}>{emptyTitle}</span>
@@ -152,7 +135,6 @@ export function Activity() {
           </div>
         )}
       </div>
-      <span style={{ fontSize: 12, color: "#F3B65F" }}>Preview data · simulated live feed</span>
     </main>
   );
 }

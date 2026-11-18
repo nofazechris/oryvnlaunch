@@ -3,14 +3,14 @@ import { TerminalView } from "@/components/terminal/TerminalView";
 
 export const metadata = {
   title: "Terminal — oryvnlaunch",
-  description: "Trade tokens on their bonding curve: live chart, order form and token AI.",
+  description: "Live chart, bonding progress and trades for every token on the curve.",
 };
 
 export default async function TerminalPage({ searchParams }: { searchParams: Promise<{ t?: string }> }) {
   const { t } = await searchParams;
   return (
     <DashboardShell>
-      <TerminalView symbol={t ?? "BUN"} />
+      <TerminalView address={t ?? null} />
     </DashboardShell>
   );
 }

@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 import { useWalletStore } from "@/lib/wallet-store";
+import { NETWORK, NETWORK_LABEL } from "@/lib/config";
 import { Contour } from "@/components/landing/Contour";
+import { WalletLogo } from "@/components/ui/WalletLogo";
 
 const WALLETS = [
   { name: "Argent X", color: "linear-gradient(135deg,#FF9865,#FF7777)", initial: "A" },
@@ -17,24 +19,22 @@ export default function LoginPage() {
   const session = useAuthStore((s) => s.session);
   const hydrated = useAuthStore((s) => s.hydrated);
   const hydrate = useAuthStore((s) => s.hydrate);
-  const signInGoogle = useAuthStore((s) => s.signInGoogle);
   const signInWallet = useAuthStore((s) => s.signInWallet);
   const connect = useWalletStore((s) => s.connect);
-  const [showWallets, setShowWallets] = useState(false);
+  const connecting = useWalletStore((s) => s.connecting);
+  const error = useWalletStore((s) => s.error);
 
   useEffect(() => hydrate(), [hydrate]);
   useEffect(() => {
     if (hydrated && session) router.replace("/overview");
   }, [hydrated, session, router]);
 
-  function google() {
-    signInGoogle("you@gmail.com");
-    router.push("/overview");
-  }
-  function wallet(name: string) {
-    connect(name);
-    signInWallet();
-    router.push("/overview");
+  async function wallet(name: string) {
+    await connect(name);
+    if (useWalletStore.getState().wallet) {
+      signInWallet();
+      router.push("/overview");
+    }
   }
 
   return (
@@ -52,43 +52,35 @@ export default function LoginPage() {
         <div style={{ borderRadius: 28, background: "rgba(16,16,16,0.85)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.1)", padding: 28, display: "flex", flexDirection: "column", gap: 18, boxShadow: "0 40px 120px rgba(0,0,0,0.6)" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, textAlign: "center" }}>
             <span style={{ fontSize: "clamp(26px,4vw,32px)", letterSpacing: "-0.03em" }}>Get started</span>
-            <span style={{ fontSize: 14, color: "#A1A1A1", lineHeight: 1.5 }}>Create your account or sign in. It takes a few seconds.</span>
+            <span style={{ fontSize: 14, color: "#A1A1A1", lineHeight: 1.5 }}>Connect your Starknet wallet to launch, trade and research.</span>
           </div>
 
-          {!showWallets ? (
-            <>
-              <button onClick={google} className="lp-bright" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, height: 52, borderRadius: 16, border: 0, cursor: "pointer", fontWeight: 600, fontSize: 15, background: "#fff", color: "#1a1a1a" }}>
-                <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.52 12.27c0-.79-.07-1.54-.2-2.27H12v4.3h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.66z" /><path fill="#34A853" d="M12 24c3.24 0 5.96-1.08 7.95-2.91l-3.88-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.26v3.09A12 12 0 0 0 12 24z" /><path fill="#FBBC05" d="M5.27 14.29A7.2 7.2 0 0 1 4.89 12c0-.8.14-1.57.38-2.29V6.62H1.26A12 12 0 0 0 0 12c0 1.94.46 3.77 1.26 5.38l4.01-3.09z" /><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.26 6.62l4.01 3.09C6.22 6.86 8.87 4.75 12 4.75z" /></svg>
-                Continue with Google
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <span style={{ fontSize: 13, color: "#A1A1A1", display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />{NETWORK_LABEL[NETWORK]}
+            </span>
+            {WALLETS.map((w) => (
+              <button key={w.name} onClick={() => void wallet(w.name)} disabled={!!connecting} className="lp-walletopt" style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 16, border: "1px solid rgba(255,255,255,0.09)", background: "#141414", color: "#fff", cursor: connecting ? "default" : "pointer", textAlign: "left", opacity: connecting && connecting !== w.name ? 0.5 : 1 }}>
+                <WalletLogo name={w.name} color={w.color} initial={w.initial} />
+                <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>{w.name}</span>
+                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>{connecting === w.name ? "Approve the connection in your wallet…" : "Browser extension"}</span>
+                </span>
+                {connecting === w.name && (
+                  <svg width="22" height="22" viewBox="0 0 44 44" fill="none" aria-hidden="true">
+                    <circle cx="22" cy="22" r="18" stroke="rgba(255,255,255,0.12)" strokeWidth="4" />
+                    <path d="M22 4a18 18 0 0 1 18 18" stroke="#fff" strokeWidth="4" strokeLinecap="round">
+                      <animateTransform attributeName="transform" type="rotate" from="0 22 22" to="360 22 22" dur="0.9s" repeatCount="indefinite" />
+                    </path>
+                  </svg>
+                )}
               </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, color: "#696969", fontSize: 12 }}>
-                <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.1)" }} />or<span style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.1)" }} />
-              </div>
-              <button onClick={() => setShowWallets(true)} className="lp-walletopt" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, height: 52, borderRadius: 16, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer", fontWeight: 600, fontSize: 15, background: "#141414", color: "#fff" }}>
-                <span style={{ width: 20, height: 20, borderRadius: "50%", background: "conic-gradient(from 200deg,#73D9E8,#B69AFF,#F38FC4,#FF9865,#73D9E8)" }} />
-                Connect a wallet
-              </button>
-            </>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <span style={{ fontSize: 13, color: "#A1A1A1", display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />Starknet Mainnet
-              </span>
-              {WALLETS.map((w) => (
-                <button key={w.name} onClick={() => wallet(w.name)} className="lp-walletopt" style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 16, border: "1px solid rgba(255,255,255,0.09)", background: "#141414", color: "#fff", cursor: "pointer", textAlign: "left" }}>
-                  <span style={{ width: 40, height: 40, borderRadius: 12, background: w.color, display: "grid", placeItems: "center", fontWeight: 700, color: "#050505" }}>{w.initial}</span>
-                  <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontWeight: 600, fontSize: 15 }}>{w.name}</span>
-                    <span style={{ fontSize: 12, color: "#A1A1A1" }}>Browser extension</span>
-                  </span>
-                </button>
-              ))}
-              <button onClick={() => setShowWallets(false)} style={{ alignSelf: "center", marginTop: 4, border: 0, background: "transparent", color: "#A1A1A1", cursor: "pointer", fontSize: 13 }}>← Back</button>
-            </div>
-          )}
+            ))}
+            {error && <span style={{ fontSize: 13, color: "#FF6868", lineHeight: 1.5 }}>{error}</span>}
+          </div>
 
           <span style={{ fontSize: 12, color: "#696969", lineHeight: 1.5, textAlign: "center" }}>
-            Non-custodial — we never hold your funds or keys. Sign-in is simulated in this preview.
+            Non-custodial: we only ever see your address, never your keys. Your wallet is your account.
           </span>
         </div>
 

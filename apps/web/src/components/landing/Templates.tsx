@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { LAUNCH_TEMPLATES } from "@/lib/oryvn-data";
+import { LAUNCH_TEMPLATES } from "@/lib/launch";
 import { Icon, IconTile, type IconName } from "@/components/ui/Icons";
 import { Reveal } from "./Reveal";
 

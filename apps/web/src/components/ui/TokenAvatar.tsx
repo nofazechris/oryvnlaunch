@@ -1,11 +1,16 @@
-import { hash, rng } from "@/lib/oryvn-data";
+"use client";
+
+import { useState } from "react";
+import { hash, rng } from "@/lib/art";
 
 /**
- * Generated token avatar: a symmetric 5x5 pixel pattern seeded by the ticker, drawn in
+ * Generated token avatar: a symmetric 5x5 pixel pattern seeded by `sym` (pass the token's address, since
+ * tickers are not unique), drawn in
  * the token's ink colour over its gradient. Stands in for token artwork until creators
  * upload an image, and is far more distinctive than a text label.
  */
-export function TokenAvatar({ sym, bg, ink, size = 44, radius }: { sym: string; bg: string; ink: string; size?: number; radius?: number }) {
+export function TokenAvatar({ sym, bg, ink, size = 44, radius, src }: { sym: string; bg: string; ink: string; size?: number; radius?: number; src?: string | null }) {
+  const [broken, setBroken] = useState(false);
   const r = rng(hash(sym));
   const cells: [number, number][] = [];
   for (let y = 0; y < 5; y++) {
@@ -17,6 +22,16 @@ export function TokenAvatar({ sym, bg, ink, size = 44, radius }: { sym: string; 
     }
   }
   if (cells.length < 8) cells.push([2, 1], [2, 2], [2, 3], [1, 2], [3, 2]); // never render a near-empty avatar
+
+  // The creator's own picture when there is one and it loads; otherwise the generated pattern.
+  if (src && !broken) {
+    return (
+      <span style={{ width: size, height: size, flexShrink: 0, borderRadius: radius ?? size * 0.3, background: bg, overflow: "hidden", position: "relative", display: "block" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="" width={size} height={size} loading="lazy" decoding="async" onError={() => setBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      </span>
+    );
+  }
 
   return (
     <span style={{ width: size, height: size, flexShrink: 0, borderRadius: radius ?? size * 0.3, background: bg, display: "grid", placeItems: "center", overflow: "hidden", position: "relative" }}>

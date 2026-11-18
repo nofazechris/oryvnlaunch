@@ -116,7 +116,6 @@ export function Settings() {
         <Row label="AI can't act for you" hint="AI explains and researches from indexed data. It can't sign, trade or move funds, and it never gives a safety score."><Icon name="check" size={18} color="#55D69A" /></Row>
       </Section>
 
-      <span style={{ fontSize: 12, color: "#F3B65F" }}>Preview · account and wallet are simulated until the backend is connected.</span>
     </main>
   );
 }
