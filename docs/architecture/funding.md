@@ -9,8 +9,8 @@ front-end flow around the contracts, not part of them, and **we never build or r
 
 | The user has | Needs | How |
 |---|---|---|
-| The right asset on Starknet | nothing | Pay directly: STRK launches in STRK, USDC launches in USDC. |
-| The *other* Starknet asset (USDC for a STRK token, or the reverse) | a swap | One wallet confirmation: approve, swap on a DEX aggregator, approve the curve, then `buy` or `create_launch`. Same flow backwards for selling. |
+| The right asset on Starknet | nothing | Pay directly: trade in STRK; the deploy fee is paid in STRK or USDC. |
+| The *other* Starknet asset (USDC to buy a STRK token) | a swap | One wallet confirmation: approve, swap on a DEX aggregator, approve the curve, then `buy` or `create_launch`. Same flow backwards for selling. |
 | Funds on another chain | a bridge, then the above | "Add funds": bridge into their own Starknet wallet, then continue as above. |
 
 ## Decision: integrate through Starkzap

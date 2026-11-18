@@ -1,0 +1,67 @@
+BUILD IN PUBLIC, 17 NOV 2026: two threads for X. Every tweet is under 280 characters.
+Copy each tweet between the lines. Attach the image named above it.
+Post thread 1 first. Post thread 2 a day or two later so each gets its own moment.
+
+#####################################################################
+THREAD 1 · oryvnlaunch is on Starknet Sepolia (5 tweets)
+#####################################################################
+
+================ TWEET 1 · attach 01-flow.png ================
+Build in public, day 7.
+
+oryvnlaunch's contracts are now deployed on Starknet Sepolia, and the app reads real chain data instead of preview data.
+
+You can pay the deploy fee in USDC or STRK. Every token trades in STRK. Here's why. 🧵
+
+================ TWEET 2 · no image ================
+The problem with letting a USDC token trade in USDC: STRK has 18 decimals and USDC has 6. Market caps and volumes can't be ranked against each other without a price feed.
+
+So the fee has a choice of asset. The market doesn't. One trading unit, one comparable number.
+
+================ TWEET 3 · no image ================
+Deploy fees on testnet: 10 STRK or 2 USDC. The token itself always trades in STRK.
+
+Market caps in the app show in dollars, using a live STRK price. If the price feed goes down, you see STRK amounts, not a stale or made-up dollar figure.
+
+================ TWEET 4 · attach 02-fees.png ================
+Trading fee: 1% per trade, split 50/50 between the token's creator and the platform.
+
+The fee stays in the curve until someone claims it. Trading never waits on a recipient, so a wallet that can't receive can't block a single trade.
+
+================ TWEET 5 · no image ================
+Honest status: testnet only. Contracts are tested, not independently audited yet. Don't put real money near this.
+
+Next: more real launches and trades on Sepolia, then the audit.
+
+Would you pay your deploy fee in USDC or STRK? Reply with which and why.
+
+#####################################################################
+THREAD 2 · What a creator earns here vs a leading launchpad (5 tweets)
+#####################################################################
+
+================ TWEET 1 · attach 03-compare.png ================
+What does a leading launchpad pay a token's creator? 0.30% of every trade on the bonding curve.
+
+On oryvnlaunch, the creator earns 0.5%.
+
+We read their public fee page (updated 16 Nov 2026) and put the numbers side by side, including where we cost more. 🧵
+
+================ TWEET 2 · no image ================
+Their curve fee is 1.25% per trade: 0.30% to the creator, 0.95% to the platform. The creator keeps about a quarter of it.
+
+Ours is 1%: 0.5% to the creator, 0.5% to the platform. Traders pay less, and the creator keeps half of what their token generates.
+
+================ TWEET 3 · no image ================
+Where we cost more: they charge no platform fee to create a coin, only network costs.
+
+We charge a one-time deploy fee, 10 STRK or 2 USDC on testnet. It's how the platform earns, alongside its half of the trade fee.
+
+================ TWEET 4 · no image ================
+The fee rules live in the contract, not a settings page. Every curve is capped at a 3% fee, and each curve keeps the rate it launched with for life.
+
+Fees build up in the curve and pay out to the creator's own address when claimed.
+
+================ TWEET 5 · no image ================
+Their numbers are from their public page as of 16 Nov 2026, and they change them. Ours are testnet defaults and can change before mainnet.
+
+Would you rather see a lower total fee, or a bigger cut for creators? Reply with which.

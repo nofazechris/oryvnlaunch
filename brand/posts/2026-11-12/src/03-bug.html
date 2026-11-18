@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A filter in the wrong place</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1600px; height: 900px; background: #050505; color: #fff; font-family: "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+  body { position: relative; padding: 64px 80px; }
+  .glow { position: absolute; inset: 0; background: radial-gradient(900px 500px at 78% 8%, rgba(182,154,255,0.13), transparent 70%), radial-gradient(700px 420px at 8% 100%, rgba(115,217,232,0.08), transparent 70%); }
+  .brand { position: relative; display: flex; align-items: center; gap: 14px; font-weight: 600; font-size: 28px; letter-spacing: -0.02em; }
+  .orb { width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), transparent 42%), conic-gradient(from 210deg, #73d9e8, #b69aff, #f38fc4, #ff9865, #73d9e8); box-shadow: 0 0 36px rgba(182,154,255,0.45); }
+  .tag { position: absolute; top: 72px; right: 80px; font-family: "Geist Mono", monospace; font-size: 20px; color: #8a8a8a; letter-spacing: 0.04em; }
+  h1 { position: relative; margin-top: 44px; font-weight: 500; font-size: 84px; letter-spacing: -0.045em; line-height: 1; }
+  .sub { position: relative; margin-top: 14px; font-size: 29px; color: #a1a1a1; }
+  .panels { position: relative; margin-top: 44px; display: flex; gap: 32px; }
+  .panel { flex: 1; border-radius: 28px; padding: 30px 34px 28px; border: 1px solid rgba(255,255,255,0.1); background: #0b0b0b; display: flex; flex-direction: column; gap: 20px; }
+  .panel.bad { border-color: rgba(255,104,104,0.35); background: linear-gradient(180deg, rgba(255,104,104,0.07), #0b0b0b 55%); }
+  .panel.good { border-color: rgba(85,214,154,0.35); background: linear-gradient(180deg, rgba(85,214,154,0.07), #0b0b0b 55%); }
+  .label { font-size: 22px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .bad .label { color: #ff6868; } .good .label { color: #55d69a; }
+  pre { font-family: "Geist Mono", monospace; font-size: 25px; line-height: 1.5; color: #d6d6d6; background: #070707; border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 18px 24px; }
+  pre .k { color: #b69aff; } pre .d { color: #7a7a7a; }
+  .result { display: flex; align-items: baseline; gap: 18px; }
+  .big { font-size: 92px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
+  .bad .big { color: #ff6868; } .good .big { color: #55d69a; }
+  .unit { font-size: 30px; color: #a1a1a1; }
+  .expect { font-size: 25px; color: #8a8a8a; margin-left: auto; }
+  .foot { position: absolute; left: 80px; right: 80px; bottom: 40px; font-size: 25px; color: #b4b4b4; line-height: 1.4; }
+  .foot b { color: #fff; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="brand"><span class="orb"></span>oryvnlaunch</div>
+<div class="tag">BUILD IN PUBLIC · 12 NOV 2026</div>
+<h1>A filter in the wrong place.</h1>
+<p class="sub">We asked a real Starknet node for one contract's events.</p>
+
+<div class="panels">
+  <div class="panel bad">
+    <span class="label">Before</span>
+<pre><span class="d">params:</span> [ {
+  <span class="k">filter</span>: { address, … },
+  <span class="k">chunk_size</span>: 500
+} ]</pre>
+    <div class="result"><span class="big">45</span><span class="unit">events</span><span class="expect">expected 3</span></div>
+  </div>
+  <div class="panel good">
+    <span class="label">After</span>
+<pre><span class="d">params:</span> {
+  <span class="k">filter</span>: { address, …,
+    <span class="k">chunk_size</span>: 500 }
+}</pre>
+    <div class="result"><span class="big">3</span><span class="unit">events</span><span class="expect">expected 3</span></div>
+  </div>
+</div>
+
+<p class="foot"><b>The node never complained.</b> It quietly returned every event on the chain. A fake node would have hidden it.</p>
+</body>
+</html>

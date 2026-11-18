@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Same raise. Three curves.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1600px; height: 900px; background: #050505; color: #fff; font-family: "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+  body { position: relative; padding: 64px 80px; }
+  .glow { position: absolute; inset: 0; background: radial-gradient(900px 500px at 78% 8%, rgba(182,154,255,0.13), transparent 70%), radial-gradient(700px 420px at 8% 100%, rgba(115,217,232,0.08), transparent 70%); }
+  .brand { position: relative; display: flex; align-items: center; gap: 14px; font-weight: 600; font-size: 28px; letter-spacing: -0.02em; }
+  .orb { width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), transparent 42%), conic-gradient(from 210deg, #73d9e8, #b69aff, #f38fc4, #ff9865, #73d9e8); box-shadow: 0 0 36px rgba(182,154,255,0.45); }
+  .tag { position: absolute; top: 72px; right: 80px; font-family: "Geist Mono", monospace; font-size: 20px; color: #8a8a8a; letter-spacing: 0.04em; }
+  h1 { position: relative; margin-top: 44px; font-weight: 500; font-size: 84px; letter-spacing: -0.045em; line-height: 1; }
+  .sub { position: relative; margin-top: 14px; font-size: 29px; color: #a1a1a1; }
+  .chart { position: absolute; left: 80px; top: 296px; }
+  .foot { position: absolute; left: 80px; bottom: 44px; font-size: 21px; color: #8a8a8a; }
+  svg text { font-family: "Geist", sans-serif; }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="brand"><span class="orb"></span>oryvnlaunch</div>
+<div class="tag">BUILD IN PUBLIC · 12 NOV 2026</div>
+<h1>Same raise. Three curves.</h1>
+<p class="sub">How much the price climbs from the first trade to graduation.</p>
+
+<svg class="chart" id="chart" width="1440" height="470" viewBox="0 0 1440 470"></svg>
+
+<p class="foot">Plotted from the contract's own formula. Every preset raises the same amount before it graduates.</p>
+
+<script>
+  // price multiple at fraction f of the curve sold, for a virtual reserve of v x the raise:
+  //   multiple(f) = ((1 + v) / (1 + v - f))^2      (checked against the contract: 4x, 9x, 25x at f = 1)
+  const presets = [
+    { name: "Gentle",   v: 1.0,  color: "#73d9e8" },
+    { name: "Standard", v: 0.5,  color: "#b69aff" },
+    { name: "Steep",    v: 0.25, color: "#ff9865" },
+  ];
+  const X0 = 90, X1 = 1180, Y0 = 424, Y1 = 24, YMAX = 26;
+  const x = (f) => X0 + f * (X1 - X0);
+  const y = (m) => Y0 - ((m - 1) / (YMAX - 1)) * (Y0 - Y1);
+  const mult = (v, f) => ((1 + v) / (1 + v - f)) ** 2;
+  let svg = "";
+
+  for (const m of [1, 5, 10, 15, 20, 25]) {
+    svg += `<line x1="${X0}" x2="${X1}" y1="${y(m)}" y2="${y(m)}" stroke="rgba(255,255,255,${m === 1 ? 0.22 : 0.07})" stroke-width="1.5"/>`;
+    svg += `<text x="${X0 - 18}" y="${y(m) + 8}" text-anchor="end" fill="#7a7a7a" font-size="22">${m}x</text>`;
+  }
+  for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+    svg += `<text x="${x(f)}" y="${Y0 + 40}" text-anchor="${f === 0 ? "start" : f === 1 ? "end" : "middle"}" fill="#7a7a7a" font-size="22">${f * 100}%</text>`;
+  }
+  svg += `<text x="${(X0 + X1) / 2}" y="${Y0 + 76}" text-anchor="middle" fill="#9a9a9a" font-size="22">share of the curve sold</text>`;
+
+  for (const p of presets) {
+    const pts = [];
+    for (let i = 0; i <= 200; i++) { const f = i / 200; pts.push(`${x(f).toFixed(1)},${y(mult(p.v, f)).toFixed(1)}`); }
+    svg += `<polyline points="${pts.join(" ")}" fill="none" stroke="${p.color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const end = mult(p.v, 1);
+    svg += `<circle cx="${x(1)}" cy="${y(end)}" r="9" fill="${p.color}"/>`;
+    svg += `<text x="${x(1) + 26}" y="${y(end) - 4}" fill="${p.color}" font-size="46" font-weight="600">${Math.round(end)}x</text>`;
+    svg += `<text x="${x(1) + 26}" y="${y(end) + 28}" fill="#a1a1a1" font-size="24">${p.name}</text>`;
+  }
+  document.getElementById("chart").innerHTML = svg;
+</script>
+</body>
+</html>

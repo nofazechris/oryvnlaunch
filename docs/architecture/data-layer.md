@@ -37,7 +37,7 @@ Starknet  ──events──▶  @launchpad/indexer  ──rows──▶  Postgr
 
 ## Database (Neon)
 
-Tables: `launches` (one per token, with a market snapshot), `trades` (every buy and sell),
+Tables: `launches` (one per token, with a market snapshot and the fee terms it was created with), `trades` (every buy and sell, with the fee each paid),
 `quote_token_events` (history of every quote-asset change; the current setting is the newest row),
 `indexer_state` (cursor and its block hash). See `packages/db/src/schema.ts`.
 
@@ -49,10 +49,15 @@ You create the project; nothing here can do it for you.
 2. Open **Connect** in the Neon console. You need two strings for the same database:
    - the **pooled** one (host contains `-pooler`) as `DATABASE_URL`: the indexer and API use it;
    - the **direct** one (no `-pooler`) as `DATABASE_URL_DIRECT`: only migrations use it.
-3. Copy `.env.example` to `.env` and fill them in. `.env` is git-ignored. Never commit it, and
-   never paste the strings into chat or a screenshot.
-4. Create the tables: `pnpm --filter @launchpad/db db:migrate`
-5. Start the indexer, then the API (below).
+3. Copy `.env.example` to `.env` (git ignores it) and paste the two strings in. Never commit it,
+   and never paste a connection string into chat, an issue or a screenshot: it contains the
+   password.
+4. Check it: `pnpm --filter @launchpad/db db:check`. It says whether each string works and whether
+   the tables exist, and it never prints the password. It also warns if the pooled and direct
+   strings are swapped.
+5. Create the tables: `pnpm --filter @launchpad/db db:migrate` (safe to run again).
+6. Run `db:check` once more: it should say "tables are in place". Then start the indexer and the
+   API (below). They read the same `.env` automatically.
 
 The pooled connection goes through PgBouncer in transaction mode, which does not support prepared
 statements, so the code turns them off. That is already done in `connect()`.
@@ -91,6 +96,10 @@ Decisions worth knowing:
   raw numbers are not comparable. `sort=marketcap|volume` requires `quote=<asset>` and returns a 400
   that says so otherwise. `sort=progress` (how close to graduating) and `sort=newest` do compare
   across assets. A true cross-asset "highest value" ranking needs a price feed, which is not built.
+- **Fees are reported, not hidden.** A trade's `quoteAmount` is the curve-side amount, `fee` is the
+  1% on it, and `traderAmount` is what the trader actually paid (buy) or received (sell). A launch
+  reports its `tradeFee` terms and the total collected so far. Volume and market cap are curve-side
+  amounts, fees excluded.
 - **Graduated means 100%.** Selling after graduation lowers the curve's reserve, but a graduated
   launch always reports `progressBps: 10000`, both in the number and in the sort order.
 - **Unknown assets are labelled unknown** (`symbol: null`, `decimals: null`) instead of guessed.
@@ -98,13 +107,13 @@ Decisions worth knowing:
 
 ## What was verified, and how
 
-- 52 tests in `packages/chain`, including decoding of real events and the price maths checked against
+- 61 tests in `packages/chain`, including decoding of real events and the price maths checked against
   the contract's own `spot_price`.
-- 9 tests in `packages/db` on a real Postgres engine (PGlite): exact 256-bit values, constraints.
-- 41 tests in `apps/indexer`: the whole real scenario, chunking, restarts, same-height reorgs,
+- 21 tests in `packages/db` on a real Postgres engine (PGlite): exact 256-bit values, constraints.
+- 45 tests in `apps/indexer`: the whole real scenario, chunking, restarts, same-height reorgs,
   rollbacks, a devnet reset, atomic failure, retries, and the production driver over the network
   protocol. Two of them run against a live devnet when `DEVNET_RPC` is set.
-- 44 tests in `apps/api`: ranking, filters, validation, exact big numbers, CORS.
+- 49 tests in `apps/api`: ranking, filters, validation, exact big numbers, CORS.
 - The indexer and the API were also started as real processes against the live devnet and queried
   over HTTP.
 - Each suite was checked by breaking the code on purpose and confirming a test fails. That found
@@ -121,7 +130,7 @@ Decisions worth knowing:
   tens of thousands. `ChainSource` in `apps/indexer/src/indexer.ts` is the seam for an
   Apibara-backed source.
 - **Reorg depth is bounded.** A reorg deeper than `REORG_OVERLAP_BLOCKS` is not fully corrected.
-- **`START_BLOCK` matters.** A launch made before it is never indexed.
+- **The start block matters.** A launch made before it is never indexed. With `NETWORK` set it comes from the deployment record, so it cannot be set wrong; with `FACTORY_ADDRESS` it is on you.
 - **A cross-asset value ranking** (needs a STRK/USD price feed) and the landing page's "ranked by
   value" with real launches.
 - **No rate limiting, authentication or caching** on the API yet.

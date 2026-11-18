@@ -28,12 +28,19 @@ See the Technical PRD for the authoritative specification. Key invariants:
   Zustand 5. Landing-page data is preview/mock, labelled as not live.
 
 - **2026-11-12** — Contracts: virtual-reserve constant-product curve with Gentle/Standard/Steep
-  presets; creators launch in STRK or USDC, each with its own deploy fee (the platform's revenue,
-  capped on-chain at 100 whole units) and graduation raise; buys freeze at graduation, sells stay
-  open. See `contracts/README.md`.
+  presets; every token trades in STRK, and creators pay the one-time deploy fee (the platform's
+  revenue, capped on-chain at 100 whole units) in STRK or USDC; graduation is a milestone, not a lock. See `contracts/README.md`.
 - **2026-11-12** — Funding from other chains goes through an existing bridge (Starkzap, Layerswap
   underneath), never our own, behind our own thin adapter. See `docs/architecture/funding.md`.
 - **2026-11-12** — Data layer: Postgres on Neon, Drizzle, a polling indexer instead of Apibara
   (testable against devnet/Sepolia with no extra account; Apibara can replace the `ChainSource`
   later), and a read-only NestJS API. Amounts are exact: `numeric(78,0)` in the database, decimal
   strings in JSON. See `docs/architecture/data-layer.md`.
+- **2026-11-13** — Graduation revised: it is a milestone, not a lock. The curve keeps trading both
+  ways after the last token is sold; buying simply has nothing to sell until a holder sells back.
+  This replaces the 2026-11-12 rule that kept buying switched off after graduation, which was unfair
+  to later buyers and protected nothing (sells drained the curve regardless).
+- **2026-11-13** — Trading fee added: 1% of each trade's curve-side amount, half to the token's creator
+  and half to the platform (the design's original split). Accrued inside the curve and claimed on
+  demand, so trading never depends on a fee recipient being able to receive. Capped at 3% in the
+  factory and in every curve; fixed per curve for life; the owner sets it for future launches only.

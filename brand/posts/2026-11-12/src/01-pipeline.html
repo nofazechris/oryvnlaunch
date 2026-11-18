@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>From chain to screen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1600px; height: 900px; background: #050505; color: #fff; font-family: "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+  body { position: relative; padding: 64px 80px; }
+  .glow { position: absolute; inset: 0; background: radial-gradient(900px 500px at 78% 8%, rgba(182,154,255,0.13), transparent 70%), radial-gradient(700px 420px at 8% 100%, rgba(115,217,232,0.08), transparent 70%); }
+  .brand { position: relative; display: flex; align-items: center; gap: 14px; font-weight: 600; font-size: 28px; letter-spacing: -0.02em; }
+  .orb { width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), transparent 42%), conic-gradient(from 210deg, #73d9e8, #b69aff, #f38fc4, #ff9865, #73d9e8); box-shadow: 0 0 36px rgba(182,154,255,0.45); }
+  .tag { position: absolute; top: 72px; right: 80px; font-family: "Geist Mono", monospace; font-size: 20px; color: #8a8a8a; letter-spacing: 0.04em; }
+  h1 { position: relative; margin-top: 56px; font-weight: 500; font-size: 92px; letter-spacing: -0.045em; line-height: 1; }
+  .sub { position: relative; margin-top: 18px; font-size: 30px; color: #a1a1a1; }
+  .row { position: relative; margin-top: 62px; display: flex; align-items: stretch; gap: 0; }
+  .node { flex: 1; min-width: 0; background: #0b0b0b; border: 1px solid rgba(255,255,255,0.1); border-radius: 26px; padding: 26px 24px 24px; display: flex; flex-direction: column; gap: 12px; }
+  .n { font-family: "Geist Mono", monospace; font-size: 18px; color: #6f6f6f; }
+  .title { font-size: 31px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+  .detail { font-size: 23px; color: #a8a8a8; line-height: 1.32; flex: 1; min-height: 92px; }
+  .chip { align-self: flex-start; font-size: 19px; font-weight: 500; padding: 7px 14px; border-radius: 999px; line-height: 1.15; }
+  .done { background: rgba(85,214,154,0.14); color: #55d69a; }
+  .part { background: rgba(243,182,95,0.14); color: #f3b65f; }
+  .arrow { width: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: #5a5a5a; font-size: 30px; }
+  .bridge { position: relative; margin-top: 32px; border: 2px dashed rgba(182,154,255,0.55); border-radius: 26px; padding: 22px 30px; display: flex; align-items: center; gap: 28px; background: rgba(182,154,255,0.05); }
+  .bridge .title { font-size: 30px; }
+  .bridge .detail { font-size: 24px; flex: 1; min-height: 0; }
+  .chip.plan { background: rgba(182,154,255,0.16); color: #b69aff; white-space: nowrap; }
+  .legend { position: absolute; left: 80px; bottom: 44px; display: flex; gap: 34px; font-size: 20px; color: #8a8a8a; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="brand"><span class="orb"></span>oryvnlaunch</div>
+<div class="tag">BUILD IN PUBLIC · 12 NOV 2026</div>
+
+<h1>From chain to screen.</h1>
+<p class="sub">How a launch on Starknet becomes a number you can read.</p>
+
+<div class="row">
+  <div class="node"><span class="n">01</span><span class="title">Contracts</span><span class="detail">Token, curve and factory, in Cairo on Starknet.</span><span class="chip done">Built · 94 tests</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><span class="n">02</span><span class="title">Indexer</span><span class="detail">Reads the events. Rebuilds on a reorg.</span><span class="chip done">Built · tested</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><span class="n">03</span><span class="title">Database</span><span class="detail">Postgres on Neon. Exact amounts, no floats.</span><span class="chip part">Neon next</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><span class="n">04</span><span class="title">API</span><span class="detail">Read-only. Never touches funds.</span><span class="chip done">Built · 49 tests</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><span class="n">05</span><span class="title">Web app</span><span class="detail">The screens still run on preview data.</span><span class="chip part">Not wired yet</span></div>
+</div>
+
+<div class="bridge">
+  <div><div class="title">Funding from other chains</div></div>
+  <div class="detail">We plug in an existing bridge. We never build one or hold your funds.</div>
+  <span class="chip plan">Decided · not built</span>
+</div>
+
+<div class="legend">
+  <span><i style="background:#55d69a"></i>Built and tested</span>
+  <span><i style="background:#f3b65f"></i>Partly done</span>
+  <span><i style="background:#b69aff"></i>Decided, not built</span>
+</div>
+</body>
+</html>

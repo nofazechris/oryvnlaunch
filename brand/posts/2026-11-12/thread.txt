@@ -1,0 +1,37 @@
+BUILD IN PUBLIC, 12 NOV 2026: thread for X (5 tweets, each under 280 characters)
+Copy each tweet between the lines. Attach the image named above it.
+
+================ TWEET 1 · attach 01-pipeline.png ================
+Build in public, day 2.
+
+oryvnlaunch now has working contracts and a data layer. Launch a token in STRK or USDC, it trades on its own bonding curve, and an indexer and API read it all back.
+
+Tested end to end on a local Starknet node. Not on testnet yet. 🧵
+
+================ TWEET 2 · attach 02-curves.png ================
+One decision: a token's curve is paired with the asset you launch in. A STRK token trades in STRK. A USDC token trades in USDC. No conversion inside the contracts.
+
+Three presets, same raise, different steepness. Price multiple to graduation: 4x, 9x, 25x.
+
+================ TWEET 3 · attach 03-bug.png ================
+What bit us: we asked a real Starknet node for one contract's events and got every event on the chain. 45 instead of 3.
+
+Our filter was in the wrong place and the node never complained. A fake node would have hidden it.
+
+Also caught: a graduated token showing 25% progress.
+
+================ TWEET 4 · no image ================
+More decisions, and why:
+
+• Graduation isn't a lock. The curve keeps trading both ways, so nobody is shut out
+• No bridge of our own. We plug in an existing one: bridges get attacked, and we never hold your funds
+• Circle can freeze USDC. We'll say so in the app
+
+================ TWEET 5 · attach 04-tests.png ================
+277 tests pass. We also broke the code on purpose, 29 ways, to check the tests notice. One slipped through, so we fixed the test.
+
+Next: Sepolia and a real database.
+
+Would you launch in STRK or USDC? Should USDC launches cost more?
+
+Follow along, we build in the open.

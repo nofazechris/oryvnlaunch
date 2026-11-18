@@ -39,3 +39,7 @@ contracts/.snfoundry_cache/
 contracts/accounts.json
 contracts/devnet-accounts.json
 contracts/deployments/devnet.json
+
+# local junk
+contracts/nul
+contracts/snfoundry_trace/
