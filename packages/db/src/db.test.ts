@@ -120,3 +120,70 @@ describe("schema on a real Postgres", () => {
     expect(await current.db.select().from(trades).where(eq(trades.id, "1:c:0"))).toHaveLength(1);
   });
 });
+
+describe("holdersOf", () => {
+  const ZERO = "0x" + "0".repeat(64);
+  const T = addr(100);
+  let n = 0;
+  const move = (from: string, to: string, value: bigint, token = T) => ({
+    id: `1:${token}:${n++}`,
+    token,
+    from,
+    to,
+    value: value.toString(),
+    blockNumber: 1,
+    indexInBlock: n,
+    txHash: addr(7),
+  });
+
+  it("adds up transfers into balances, biggest first, and never lists the mint source or empty wallets", async () => {
+    current = await createTestDb();
+    const { holdersOf } = await import("./queries.js");
+    const { transfers } = await import("./schema.js");
+    const [factory, curve, creator, alice, bob] = [addr(11), addr(12), addr(13), addr(14), addr(15)];
+    await current.db.insert(transfers).values([
+      move(ZERO, factory, 1_000n),
+      move(factory, curve, 800n),
+      move(factory, creator, 20n),
+      move(curve, alice, 300n), // alice buys 300
+      move(alice, bob, 100n), // and sends 100 on
+      move(bob, alice, 100n), // bob sends it all back, so bob is no longer a holder
+      move(addr(99), addr(98), 5n, addr(200)), // another token: must not leak in
+    ]);
+    const r = await holdersOf(current.db, T);
+    expect(r.minted).toBe(1_000n);
+    expect(r.holders).toEqual([
+      { address: curve, balance: 500n },
+      { address: alice, balance: 300n },
+      { address: factory, balance: 180n },
+      { address: creator, balance: 20n },
+    ]);
+    expect(r.count).toBe(4);
+    expect(r.holders.reduce((a, h) => a + h.balance, 0n)).toBe(r.minted);
+  });
+
+  it("counts every holder even when only some are returned", async () => {
+    current = await createTestDb();
+    const { holdersOf } = await import("./queries.js");
+    const { transfers } = await import("./schema.js");
+    await current.db.insert(transfers).values([move(ZERO, addr(20), 100n), move(addr(20), addr(21), 10n), move(addr(20), addr(22), 20n), move(addr(20), addr(23), 30n)]);
+    const r = await holdersOf(current.db, T, 2);
+    expect(r.holders.map((h) => h.balance)).toEqual([40n, 30n]);
+    expect(r.count).toBe(4);
+  });
+
+  it("keeps full 256-bit precision", async () => {
+    current = await createTestDb();
+    const { holdersOf } = await import("./queries.js");
+    const { transfers } = await import("./schema.js");
+    await current.db.insert(transfers).values([move(ZERO, addr(30), U256_MAX), move(addr(30), addr(31), U256_MAX - 1n)]);
+    const r = await holdersOf(current.db, T);
+    expect(r.holders).toEqual([{ address: addr(31), balance: U256_MAX - 1n }, { address: addr(30), balance: 1n }]);
+  });
+
+  it("returns nothing for a token with no transfers", async () => {
+    current = await createTestDb();
+    const { holdersOf } = await import("./queries.js");
+    expect(await holdersOf(current.db, addr(555))).toEqual({ holders: [], count: 0, minted: 0n });
+  });
+});

@@ -49,6 +49,9 @@ export async function runMigrations(url: string): Promise<void> {
     max: 1,
     prepare: false,
     ssl: /localhost|127\.0\.0\.1/.test(url) ? false : "require",
+    // Re-running a migration makes Postgres say "already exists, skipping". That is the point of
+    // `IF NOT EXISTS`, not news, so keep it out of the output.
+    onnotice: () => {},
   });
   try {
     await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });

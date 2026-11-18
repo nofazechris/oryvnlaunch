@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { graduationProgressBps, initialReserves, marketCap, spotPrice, virtualQuote, TOTAL_SUPPLY } from "./math.js";
+import { MAX_TRADE_FEE_BPS, feeOf, graduationProgressBps, initialReserves, marketCap, netFromGross, spotPrice, splitFee, virtualQuote, TOTAL_SUPPLY } from "./math.js";
 
 const E18 = 10n ** 18n;
 
@@ -118,5 +118,54 @@ describe("initialReserves", () => {
     const r = initialReserves(1, 3n);
     expect(r.quoteReserve).toBe(1n);
     expect(r.tokenReserve * 3n).toBeGreaterThanOrEqual(TOTAL_SUPPLY * 8n / 10n * 4n);
+  });
+});
+
+// These use the same figures as the contract's own Cairo tests (contracts/src/tests/test_curve_math.cairo),
+// because this code must agree with the contract to the last unit: the front end uses it for previews.
+describe("trading fee maths mirror the contract", () => {
+  it("takes one percent of a round amount", () => {
+    expect(feeOf(100n * E18, 100)).toBe(E18);
+    expect(feeOf(50n * E18, 100)).toBe(E18 / 2n);
+    expect(feeOf(12_345n, 0)).toBe(0n);
+  });
+
+  it("rounds the fee up, so a tiny trade still pays a unit", () => {
+    expect([1n, 99n, 100n, 101n].map((n) => feeOf(n, 100))).toEqual([1n, 1n, 1n, 2n]);
+  });
+
+  it("turns a total budget into the amount that can go into the curve", () => {
+    expect(netFromGross((505n * E18) / 10n, 100)).toBe(50n * E18);
+    expect(netFromGross(0n, 100)).toBe(0n);
+    expect(netFromGross(1n, 100)).toBe(0n);
+    expect(netFromGross(2n, 100)).toBe(1n);
+    expect(netFromGross(12_345n, 0)).toBe(12_345n);
+  });
+
+  it("splits a fee without losing or creating a unit", () => {
+    expect(splitFee(101n, 5_000)).toEqual([50n, 51n]);
+    expect(splitFee(7n, 0)).toEqual([0n, 7n]);
+    expect(splitFee(7n, 10_000)).toEqual([7n, 0n]);
+  });
+
+  it("always fits the budget, and never leaves a spendable unit unused, for any fee up to the cap", () => {
+    // A deterministic spread of budgets, from a single unit to far beyond 2^128, at every fee in range.
+    const budgets = [0n, 1n, 2n, 3n, 99n, 100n, 101n, 9_999n, 10_001n, 123_456_789n, 10n ** 18n, 5n * 10n ** 21n + 7n, 2n ** 130n + 12_345n];
+    for (let bps = 0; bps <= MAX_TRADE_FEE_BPS; bps += 1) {
+      for (const gross of budgets) {
+        const net = netFromGross(gross, bps);
+        expect(net + feeOf(net, bps), `budget ${gross} at ${bps} bps`).toBeLessThanOrEqual(gross);
+        if (gross > 0n) expect(net + 1n + feeOf(net + 1n, bps), `tight at ${gross}, ${bps} bps`).toBeGreaterThan(gross);
+      }
+    }
+  });
+
+  it("agrees with the real events: a 50.5 buy at 1% is 50 into the curve and 0.5 of fee", () => {
+    const net = netFromGross((505n * E18) / 10n, 100);
+    expect([net, feeOf(net, 100)]).toEqual([50n * E18, E18 / 2n]);
+  });
+
+  it("exposes the same 3% ceiling the contract enforces", () => {
+    expect(MAX_TRADE_FEE_BPS).toBe(300);
   });
 });

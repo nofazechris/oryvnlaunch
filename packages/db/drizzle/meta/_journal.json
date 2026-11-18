@@ -8,6 +8,34 @@
       "when": 1794497091017,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794595626940,
+      "tag": "0001_trading_fees",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794613769265,
+      "tag": "0002_token_transfers",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794614410026,
+      "tag": "0003_token_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794756540474,
+      "tag": "0004_fee_assets",
+      "breakpoints": true
     }
   ]
 }

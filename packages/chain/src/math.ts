@@ -53,6 +53,30 @@ export function graduationProgressBps(quoteReserve: bigint, preset: number, grad
   return Number(bps > BPS ? BPS : bps);
 }
 
+/** Hard ceiling on the trading fee, in basis points (3%). Enforced by the factory and every curve. */
+export const MAX_TRADE_FEE_BPS = 300;
+
+/** Fee on a curve-side amount, rounded UP. Mirrors `fee_of` in curve_math.cairo. */
+export function feeOf(amount: bigint, feeBps: number): bigint {
+  return ceilDiv(amount * BigInt(feeBps), BPS);
+}
+
+/**
+ * The most that can go into the curve out of a total budget once the fee on it is paid: the largest
+ * `net` with `net + feeOf(net) <= gross`. Mirrors `net_from_gross` in curve_math.cairo.
+ */
+export function netFromGross(gross: bigint, feeBps: number): bigint {
+  let net = (gross * BPS) / (BPS + BigInt(feeBps));
+  while (net > 0n && net + feeOf(net, feeBps) > gross) net -= 1n;
+  return net;
+}
+
+/** Split a fee into [creator, platform]. The creator's share rounds down, the platform keeps the rest. */
+export function splitFee(fee: bigint, creatorShareBps: number): [bigint, bigint] {
+  const creator = (fee * BigInt(creatorShareBps)) / BPS;
+  return [creator, fee - creator];
+}
+
 function ceilDiv(a: bigint, b: bigint): bigint {
   return (a + b - 1n) / b;
 }

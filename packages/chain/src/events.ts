@@ -29,15 +29,20 @@ export function eventSelector(name: string): bigint {
 export const SELECTORS = {
   LaunchCreated: eventSelector("LaunchCreated"),
   QuoteTokenSet: eventSelector("QuoteTokenSet"),
+  FeeAssetSet: eventSelector("FeeAssetSet"),
   TokensBought: eventSelector("TokensBought"),
   TokensSold: eventSelector("TokensSold"),
   Graduated: eventSelector("Graduated"),
+  Transfer: eventSelector("Transfer"),
 } as const;
 
 /** Selectors of the events a curve emits, as 0x-hex, for use in an RPC filter. */
 export const CURVE_EVENT_KEYS: string[] = [SELECTORS.TokensBought, SELECTORS.TokensSold, SELECTORS.Graduated].map(
   (s) => "0x" + s.toString(16),
 );
+
+/** Selector of the ERC-20 Transfer event a token emits, as 0x-hex, for use in an RPC filter. */
+export const TOKEN_EVENT_KEYS: string[] = ["0x" + SELECTORS.Transfer.toString(16)];
 
 export interface EventPosition {
   blockNumber: number;
@@ -63,6 +68,22 @@ export interface LaunchCreated extends EventPosition {
   creatorBps: number;
   graduationRaise: bigint;
   deployFee: bigint;
+  /** Trading fee this curve keeps for life, in basis points of each trade (100 = 1%). */
+  tradeFeeBps: number;
+  /** Creator's share of each fee, in basis points of the fee (5000 = half). */
+  creatorFeeShareBps: number;
+  /** The asset the deploy fee was paid in (STRK or USDC). `quoteToken` is what the curve trades in. */
+  feeToken: string;
+}
+
+/** A deploy-fee asset was enabled, disabled or repriced. */
+export interface FeeAssetSet extends EventPosition {
+  type: "FeeAssetSet";
+  factory: string;
+  feeToken: string;
+  enabled: boolean;
+  /** In the asset's smallest unit. */
+  deployFee: bigint;
 }
 
 export interface QuoteTokenSet extends EventPosition {
@@ -78,7 +99,10 @@ export interface TokensBought extends EventPosition {
   type: "TokensBought";
   curve: string;
   buyer: string;
+  /** What went into the curve. The buyer's wallet paid `quoteIn + fee`. */
   quoteIn: bigint;
+  /** Trading fee on this trade, in the quote asset's smallest unit. */
+  fee: bigint;
   tokensOut: bigint;
   quoteReserve: bigint;
   tokenReserve: bigint;
@@ -89,7 +113,9 @@ export interface TokensSold extends EventPosition {
   curve: string;
   seller: string;
   tokensIn: bigint;
+  /** What left the curve's reserve. The seller received `quoteOut - fee`. */
   quoteOut: bigint;
+  fee: bigint;
   quoteReserve: bigint;
   tokenReserve: bigint;
 }
@@ -101,7 +127,19 @@ export interface Graduated extends EventPosition {
   tokensSold: bigint;
 }
 
-export type FactoryEvent = LaunchCreated | QuoteTokenSet;
+/**
+ * A token moving between two addresses. A mint has `from` = the zero address. Holder balances are
+ * the sum of these, so every one of them must be indexed or the totals are wrong.
+ */
+export interface TokenTransfer extends EventPosition {
+  type: "Transfer";
+  token: string;
+  from: string;
+  to: string;
+  value: bigint;
+}
+
+export type FactoryEvent = LaunchCreated | QuoteTokenSet | FeeAssetSet;
 export type CurveEvent = TokensBought | TokensSold | Graduated;
 
 function position(raw: RawEvent, indexInBlock: number): EventPosition {
@@ -148,6 +186,26 @@ export function decodeFactoryEvent(raw: RawEvent, indexInBlock: number): Factory
       creatorBps: d.smallInt(10_000),
       graduationRaise: d.u256(),
       deployFee: d.u256(),
+      tradeFeeBps: d.smallInt(300),
+      creatorFeeShareBps: d.smallInt(10_000),
+      feeToken: d.address(),
+    };
+    d.finish();
+    return event;
+  }
+
+  if (selector === SELECTORS.FeeAssetSet) {
+    const keys = keyReader(raw, "FeeAssetSet");
+    const feeToken = keys.address();
+    keys.finish();
+    const d = new FeltReader(raw.data, "FeeAssetSet");
+    const event: FeeAssetSet = {
+      ...position(raw, indexInBlock),
+      type: "FeeAssetSet",
+      factory,
+      feeToken,
+      enabled: d.bool(),
+      deployFee: d.u256(),
     };
     d.finish();
     return event;
@@ -193,6 +251,7 @@ export function decodeCurveEvent(raw: RawEvent, indexInBlock: number): CurveEven
       curve,
       buyer,
       quoteIn: d.u256(),
+      fee: d.u256(),
       tokensOut: d.u256(),
       quoteReserve: d.u256(),
       tokenReserve: d.u256(),
@@ -213,6 +272,7 @@ export function decodeCurveEvent(raw: RawEvent, indexInBlock: number): CurveEven
       seller,
       tokensIn: d.u256(),
       quoteOut: d.u256(),
+      fee: d.u256(),
       quoteReserve: d.u256(),
       tokenReserve: d.u256(),
     };
@@ -235,4 +295,27 @@ export function decodeCurveEvent(raw: RawEvent, indexInBlock: number): CurveEven
   }
 
   return null;
+}
+
+/**
+ * Decode an event emitted by one of our tokens. Returns null for events we do not index, such as
+ * Approval. `from` and `to` are indexed (keys) in the OpenZeppelin ERC-20 the factory deploys.
+ */
+export function decodeTokenEvent(raw: RawEvent, indexInBlock: number): TokenTransfer | null {
+  if (BigInt(raw.keys[0] ?? "0x0") !== SELECTORS.Transfer) return null;
+  const keys = keyReader(raw, "Transfer");
+  const from = keys.address();
+  const to = keys.address();
+  keys.finish();
+  const d = new FeltReader(raw.data, "Transfer");
+  const event: TokenTransfer = {
+    ...position(raw, indexInBlock),
+    type: "Transfer",
+    token: normalizeAddress(raw.from_address),
+    from,
+    to,
+    value: d.u256(),
+  };
+  d.finish();
+  return event;
 }
