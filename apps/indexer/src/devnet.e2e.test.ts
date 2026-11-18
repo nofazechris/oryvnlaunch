@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { StarknetRpc, eventSelector, normalizeAddress } from "@launchpad/chain";
-import { type Db, launches, trades } from "@launchpad/db";
+import { type Db, holdersOf, launches, trades, transfers } from "@launchpad/db";
 import { createTestDb, type TestDb } from "@launchpad/db/testing";
 import { Indexer } from "./indexer.js";
 import { getCursor } from "./project.js";
@@ -32,7 +32,7 @@ describe.skipIf(!RPC)("indexer against a live devnet", () => {
       })
     : undefined;
 
-  async function call(address: string, fn: string): Promise<bigint[]> {
+  async function call(address: string, fn: string, calldata: string[] = []): Promise<bigint[]> {
     const response = await fetch(RPC as string, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -41,7 +41,7 @@ describe.skipIf(!RPC)("indexer against a live devnet", () => {
         id: 1,
         method: "starknet_call",
         params: {
-          request: { contract_address: address, entry_point_selector: "0x" + eventSelector(fn).toString(16), calldata: [] },
+          request: { contract_address: address, entry_point_selector: "0x" + eventSelector(fn).toString(16), calldata },
           block_id: "latest",
         },
       }),
@@ -73,6 +73,26 @@ describe.skipIf(!RPC)("indexer against a live devnet", () => {
       const launchTrades = (await db.select().from(trades)).filter((t) => t.curve === launch.curve);
       expect(launchTrades.length).toBe(launch.tradeCount);
     }
+  });
+
+  it("holds every token's balances exactly as the token contract reports them", async () => {
+    const factory = normalizeAddress(deployment?.factory.address as string);
+    await runToIdle(new Indexer(new StarknetRpc({ url: RPC as string }), db, { factory, startBlock: 0, overlapBlocks: 10, maxBlockRange: 1000 }));
+    const rows = await db.select().from(launches);
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    for (const launch of rows) {
+      const { holders, minted } = await holdersOf(db, launch.token, 1000);
+      expect(minted).toBe(1_000_000_000n * 10n ** 18n);
+      expect(holders.length).toBeGreaterThanOrEqual(2);
+      let sum = 0n;
+      for (const h of holders) {
+        const [low, high] = await call(launch.token, "balance_of", [h.address]);
+        expect(h.balance, `${launch.symbol} ${h.address}`).toBe((low as bigint) + ((high as bigint) << 128n));
+        sum += h.balance;
+      }
+      expect(sum).toBe(minted); // nothing is burned, so every token is accounted for
+    }
+    expect((await db.select().from(transfers)).length).toBeGreaterThan(5);
   });
 
   it("finds nothing more to do on the next pass, and makes no changes", async () => {

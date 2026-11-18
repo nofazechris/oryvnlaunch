@@ -42,6 +42,9 @@ interface SeedOptions {
   createdAt: string;
   creator?: string;
   name?: string;
+  tradeFeeBps?: number;
+  creatorFeeShareBps?: number;
+  feesTotal?: bigint;
 }
 
 /** Insert a launch with reserves consistent with the curve maths. Tokens are addr(n). */
@@ -78,6 +81,9 @@ async function seedLaunch(o: SeedOptions) {
     marketCap: marketCap(quoteReserve, tokenReserve).toString(),
     tradeCount: 0,
     volumeQuote: (o.volume ?? 0n).toString(),
+    tradeFeeBps: o.tradeFeeBps ?? 0,
+    creatorFeeShareBps: o.creatorFeeShareBps ?? 0,
+    feesTotal: (o.feesTotal ?? 0n).toString(),
   });
 }
 
@@ -322,6 +328,51 @@ describe("GET /launches/:token/trades", () => {
   });
 });
 
+describe("the trading fee", () => {
+  it("reports the fee terms a launch was created with, and what it has collected", async () => {
+    await seedLaunch({
+      n: 1, quote: STRK, preset: 1, raise: 1_000n * E18, createdAt: "2026-11-01T10:00:00Z",
+      tradeFeeBps: 100, creatorFeeShareBps: 5_000, feesTotal: 12n * E18,
+    });
+    const { body } = await get("/launches/" + addr(1));
+    expect(body.tradeFee).toEqual({ bps: 100, creatorShareBps: 5_000, totalCollected: String(12n * E18) });
+    expect((await get("/launches")).body.items[0].tradeFee.bps).toBe(100);
+  });
+
+  it("says a fee-free launch has no fee, instead of leaving the field out", async () => {
+    await seedLaunch({ n: 1, quote: STRK, preset: 1, raise: 1_000n * E18, createdAt: "2026-11-01T10:00:00Z" });
+    const { body } = await get("/launches/" + addr(1));
+    expect(body.tradeFee).toEqual({ bps: 0, creatorShareBps: 0, totalCollected: "0" });
+  });
+
+  async function tradeOf(side: "buy" | "sell", quoteAmount: string, fee: string) {
+    await seedLaunch({ n: 1, quote: STRK, preset: 1, raise: 1_000n * E18, createdAt: "2026-11-01T10:00:00Z", tradeFeeBps: 100, creatorFeeShareBps: 5_000 });
+    await db.insert(trades).values({
+      id: "10:c:0", curve: addr(1001), token: addr(1), side, trader: addr(7),
+      quoteAmount, fee, tokenAmount: "5", quoteReserve: "5", tokenReserve: "5", price: "1",
+      blockNumber: 10, indexInBlock: 0, txHash: addr(3000), blockTime: new Date("2026-11-02T12:00:00Z"),
+    });
+    return (await get(`/launches/${addr(1)}/trades`)).body.items[0];
+  }
+
+  it("shows a buyer paid the curve amount plus the fee", async () => {
+    const trade = await tradeOf("buy", String(50n * E18), String(E18 / 2n));
+    expect(trade).toMatchObject({ side: "buy", quoteAmount: String(50n * E18), fee: String(E18 / 2n), traderAmount: String(505n * E18 / 10n) });
+  });
+
+  it("shows a seller received the curve amount minus the fee", async () => {
+    const trade = await tradeOf("sell", String(50n * E18), String(E18 / 2n));
+    expect(trade).toMatchObject({ side: "sell", traderAmount: String(495n * E18 / 10n) });
+  });
+
+  it("keeps the arithmetic exact beyond what a JavaScript number can hold", async () => {
+    const big = 2n ** 200n;
+    const trade = await tradeOf("buy", big.toString(), "12345678901234567890");
+    expect(trade.traderAmount).toBe((big + 12345678901234567890n).toString());
+    expect(Number(trade.traderAmount).toString()).not.toBe(trade.traderAmount); // a float would have corrupted it
+  });
+});
+
 describe("GET /quote-tokens", () => {
   it("lists each asset's current setting, from the newest change event", async () => {
     const row = (id: string, quote: string, enabled: boolean, fee: string, block: number) => ({
@@ -402,12 +453,17 @@ describe("CORS when configured", () => {
     expect(response.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
-  it("only advertises read methods in the preflight", async () => {
+  it("never advertises PUT, PATCH or DELETE, and the only write that exists is the image upload", async () => {
     const response = await corsApp.inject({
       method: "OPTIONS",
       url: "/launches",
       headers: { origin: "https://oryvnlaunch.com", "access-control-request-method": "POST" },
     });
-    expect(String(response.headers["access-control-allow-methods"] ?? "")).not.toMatch(/POST|PUT|DELETE|PATCH/);
+    expect(String(response.headers["access-control-allow-methods"] ?? "")).not.toMatch(/PUT|DELETE|PATCH/);
+    // POST is allowed in the preflight for the upload, but nothing else accepts one.
+    for (const url of ["/launches", "/activity", "/stats", "/health", "/quote-tokens"]) {
+      const r = await corsApp.inject({ method: "POST", url, payload: {} });
+      expect(r.statusCode, url).toBe(404);
+    }
   });
 });

@@ -9,11 +9,14 @@
 
 import {
   CURVE_EVENT_KEYS,
+  TOKEN_EVENT_KEYS,
   type CurveEvent,
   type FactoryEvent,
   type RawEvent,
+  type TokenTransfer,
   decodeCurveEvent,
   decodeFactoryEvent,
+  decodeTokenEvent,
 } from "@launchpad/chain";
 import { type Db, launches, lte } from "@launchpad/db";
 import { type Batch, applyBatch, getCursor } from "./project.js";
@@ -41,7 +44,7 @@ export type Logger = (level: "info" | "error", message: string, fields?: Record<
 
 export type TickResult =
   | { status: "idle"; head: number }
-  | { status: "indexed"; head: number; from: number; to: number; factoryEvents: number; curveEvents: number; caughtUp: boolean };
+  | { status: "indexed"; head: number; from: number; to: number; factoryEvents: number; curveEvents: number; tokenEvents: number; caughtUp: boolean };
 
 /**
  * Decode raw events, numbering each by its position among that contract's events in its block.
@@ -126,9 +129,14 @@ export class Indexer {
     );
 
     // Every curve we know of, plus any announced in this very range.
-    const known = await this.db.select({ curve: launches.curve }).from(launches).where(lte(launches.createdBlock, to));
+    const known = await this.db.select({ curve: launches.curve, token: launches.token }).from(launches).where(lte(launches.createdBlock, to));
     const curves = new Set(known.map((row) => row.curve));
-    for (const event of factoryEvents) if (event.type === "LaunchCreated") curves.add(event.curve);
+    const tokens = new Set(known.map((row) => row.token));
+    for (const event of factoryEvents) {
+      if (event.type !== "LaunchCreated") continue;
+      curves.add(event.curve);
+      tokens.add(event.token);
+    }
 
     const perCurve = await mapLimit([...curves], this.options.concurrency ?? 4, async (curve) =>
       decodeAll(
@@ -138,16 +146,26 @@ export class Indexer {
     );
     const curveEvents: CurveEvent[] = perCurve.flat();
 
+    // Every token's transfers, which is what holder balances are built from. A launch announced in
+    // this range has its mint here too, because the token is created in the same transaction.
+    const perToken = await mapLimit([...tokens], this.options.concurrency ?? 4, async (token) =>
+      decodeAll(
+        await this.source.getEvents({ address: token, fromBlock: from, toBlock: to, keys: TOKEN_EVENT_KEYS }),
+        decodeTokenEvent,
+      ),
+    );
+    const tokenEvents: TokenTransfer[] = perToken.flat();
+
     // Block times, looked up by hash so a reorg can never serve a stale time for a block number.
     const hashByBlock = new Map<number, string>();
-    for (const event of [...factoryEvents, ...curveEvents]) hashByBlock.set(event.blockNumber, event.blockHash);
+    for (const event of [...factoryEvents, ...curveEvents, ...tokenEvents]) hashByBlock.set(event.blockNumber, event.blockHash);
     const blockTimes = new Map<number, number>();
     for (const [block, hash] of [...hashByBlock].sort((a, b) => a[0] - b[0])) {
       blockTimes.set(block, await this.source.blockTimestamp(hash));
     }
 
     const toHash = await this.source.blockHash(to);
-    const batch: Batch = { from, to, toHash, factoryEvents, curveEvents, blockTimes };
+    const batch: Batch = { from, to, toHash, factoryEvents, curveEvents, tokenEvents, blockTimes };
     await applyBatch(this.db, batch);
 
     return {
@@ -157,6 +175,7 @@ export class Indexer {
       to,
       factoryEvents: factoryEvents.length,
       curveEvents: curveEvents.length,
+      tokenEvents: tokenEvents.length,
       caughtUp: to >= head,
     };
   }

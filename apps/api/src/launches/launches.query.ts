@@ -1,5 +1,6 @@
 import { normalizeAddress } from "@launchpad/chain";
 import { z } from "zod";
+import { INTERVALS } from "../candles.js";
 
 const address = z
   .string()
@@ -44,5 +45,23 @@ export const ListLaunchesQuery = z
   });
 export type ListLaunchesQuery = z.infer<typeof ListLaunchesQuery>;
 
+export const HoldersQuery = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) });
+export type HoldersQuery = z.infer<typeof HoldersQuery>;
+
 export const TradesQuery = z.object({ ...page });
 export type TradesQuery = z.infer<typeof TradesQuery>;
+
+export const CandlesQuery = z.object({
+  interval: z.enum(INTERVALS).default("15m"),
+  limit: z.coerce.number().int().min(1).max(500).default(120),
+});
+export type CandlesQuery = z.infer<typeof CandlesQuery>;
+
+export const ActivityQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  /** Only events by this wallet: its trades, and launches it created. */
+  wallet: address.optional(),
+  /** Only events on this token. */
+  token: address.optional(),
+});
+export type ActivityQuery = z.infer<typeof ActivityQuery>;

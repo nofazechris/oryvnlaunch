@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { initialReserves } from "@launchpad/chain";
-import { type Db, currentQuoteTokens, eq, launches, trades } from "@launchpad/db";
+import { SELECTORS, feeOf, initialReserves } from "@launchpad/chain";
+import { type Db, currentFeeAssets, currentQuoteTokens, eq, holdersOf, launches, trades, transfers } from "@launchpad/db";
 import { createTestDb, type TestDb } from "@launchpad/db/testing";
 import { Indexer, type IndexerOptions, type Logger } from "./indexer.js";
 import { getCursor } from "./project.js";
-import { CURVE, E18, FACTORY, FakeNode, HEAD, STRK, clearDatabase, contractState, dump, fixture, runToIdle } from "./test-support.js";
+import { CURVE, E18, FACTORY, FakeNode, HEAD, STRK, clearDatabase, contractState, dump, fixture, fixtureTransfers, runToIdle } from "./test-support.js";
 
 let testDb: TestDb;
 let db: Db;
@@ -63,8 +63,11 @@ describe("indexing the real scenario", () => {
       ["sell", 10, 50n * E18, 109_090_909_090_909_090_909_090_909n],
       ["buy", 12, 1_000n * E18, 800_000_000n * E18],
       ["sell", 14, 750n * E18, 400_000_000n * E18],
+      // The creator buying in after graduation, once sells had made room: a 20 STRK budget is
+      // 19.80198... into the curve plus 1% of that as fee.
+      ["buy", 16, 19_801_980_198_019_801_980n, 20_578_778_135_048_231_511_053_525n],
     ]);
-    expect(new Set(rows.map((r) => r.id)).size).toBe(4);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(5);
   });
 
   it("stores each trade's price, worked out from that trade's own reserves", async () => {
@@ -76,7 +79,7 @@ describe("indexing the real scenario", () => {
     // The sell back to the opening reserves lands on the curve's opening price.
     expect(BigInt(rows[1]?.price ?? "0")).toBe(416_666_666_666_666_666_666_666_666_666n);
     // The last trade leaves the curve exactly where the contract says it is now.
-    expect(BigInt(rows[3]?.price ?? "0")).toBe(contractState().spotPrice);
+    expect(BigInt(rows[4]?.price ?? "0")).toBe(contractState().spotPrice);
     // Buying pushes the price up and selling pulls it down.
     expect(BigInt(rows[0]?.price ?? "0")).toBeGreaterThan(BigInt(rows[1]?.price ?? "0"));
   });
@@ -89,10 +92,47 @@ describe("indexing the real scenario", () => {
     expect(BigInt(launch?.tokenReserve ?? "0")).toBe(onChain.tokenReserve);
     expect(BigInt(launch?.price ?? "0")).toBe(onChain.spotPrice);
     expect(launch?.graduated).toBe(onChain.graduated);
-    expect(launch?.tradeCount).toBe(4);
-    expect(BigInt(launch?.volumeQuote ?? "0")).toBe(1_850n * E18);
-    expect(BigInt(launch?.marketCap ?? "0")).toBe(937_500n * 10n ** 15n);
-    expect(launch?.lastTradeAt).toEqual(new Date(fixture.timestamps["14"]! * 1000));
+    expect(launch?.tradeCount).toBe(5);
+    // Volume is the curve-side amounts: 50 + 50 + 1000 + 750 + 19.80198...; fees are counted separately.
+    expect(BigInt(launch?.volumeQuote ?? "0")).toBe(1_869_801_980_198_019_801_980n);
+    // The expected figures below were worked out outside this codebase from the reserves in the events.
+    expect(BigInt(launch?.marketCap ?? "0")).toBe(987_658_481_194_654_118_876n);
+    expect(BigInt(launch?.price ?? "0")).toBe(987_658_481_194_654_118_876_726_137_849n);
+    expect(launch?.lastTradeAt).toEqual(new Date(fixture.timestamps["16"]! * 1000));
+  });
+
+  it("records the fee terms the curve was created with", async () => {
+    await indexEverything();
+    const [launch] = await db.select().from(launches);
+    expect(launch).toMatchObject({ tradeFeeBps: 100, creatorFeeShareBps: 5_000 });
+  });
+
+  it("stores the fee each trade paid, and the total on the launch", async () => {
+    await indexEverything();
+    const rows = await db.select().from(trades).orderBy(trades.blockNumber, trades.indexInBlock);
+    // 1% of each curve-side amount, rounded up: 0.5, 0.5, 10, 7.5 and 1% of 19.80198... rounded up.
+    expect(rows.map((r) => BigInt(r.fee))).toEqual([E18 / 2n, E18 / 2n, 10n * E18, (15n * E18) / 2n, 198_019_801_980_198_020n]);
+    const [launch] = await db.select().from(launches);
+    expect(BigInt(launch?.feesTotal ?? "0")).toBe(18_698_019_801_980_198_020n);
+  });
+
+  it("stores the curve-side amount, so the reserves move by exactly it and the fee never touches them", async () => {
+    await indexEverything();
+    const rows = await db.select().from(trades).orderBy(trades.blockNumber, trades.indexInBlock);
+    let reserve = initialReserves(1, 1_000n * E18).quoteReserve; // the curve's opening quote reserve
+    for (const row of rows) {
+      const after = BigInt(row.quoteReserve);
+      const moved = row.side === "buy" ? after - reserve : reserve - after;
+      expect(moved, `trade ${row.id}`).toBe(BigInt(row.quoteAmount));
+      reserve = after;
+    }
+  });
+
+  it("agrees with the contract's own rule: the fee is 1% of the curve-side amount, rounded up", async () => {
+    await indexEverything();
+    for (const row of await db.select().from(trades)) {
+      expect(BigInt(row.fee), `trade ${row.id}`).toBe(feeOf(BigInt(row.quoteAmount), 100));
+    }
   });
 
   it("keeps the factory's quote asset settings as history and reads the current one back", async () => {
@@ -131,7 +171,7 @@ describe("reading the chain in different sized pieces", () => {
     const { indexer } = await indexEverything();
     expect(indexer).toBeDefined();
     const reference = await dump(db);
-    expect(reference.trades).toHaveLength(4);
+    expect(reference.trades).toHaveLength(5);
 
     for (const [maxBlockRange, overlapBlocks] of [[1, 0], [2, 3], [3, 10], [7, 0], [1000, 10]] as const) {
       await clearDatabase(db);
@@ -176,7 +216,7 @@ describe("reading the chain in different sized pieces", () => {
     const first = await restarted.tick();
     expect(first).toMatchObject({ status: "indexed", from: 9, to: HEAD });
     expect(node.requests.some((r) => /getEvents \S+ [0-8]-/.test(r))).toBe(false);
-    expect((await db.select().from(trades)).length).toBe(4);
+    expect((await db.select().from(trades)).length).toBe(5);
   });
 
   it("indexes nothing before START_BLOCK, which is why it must be set to the factory's deploy block", async () => {
@@ -199,10 +239,10 @@ describe("when the chain changes under the indexer", () => {
     expect(result).toMatchObject({ status: "indexed", head: HEAD });
 
     const rows = await db.select().from(trades).orderBy(trades.blockNumber);
-    expect(rows.map((r) => r.blockNumber)).toEqual([8, 10, 14]);
+    expect(rows.map((r) => r.blockNumber)).toEqual([8, 10, 14, 16]);
     const [launch] = await db.select().from(launches);
-    expect(launch).toMatchObject({ graduated: false, graduatedBlock: null, graduatedAt: null, tradeCount: 3 });
-    expect(launch?.lastTradeAt).toEqual(new Date((fixture.timestamps["14"]! + 1) * 1000)); // the new block 14's time
+    expect(launch).toMatchObject({ graduated: false, graduatedBlock: null, graduatedAt: null, tradeCount: 4 });
+    expect(launch?.lastTradeAt).toEqual(new Date((fixture.timestamps["16"]! + 1) * 1000)); // the new block 16's time
     expect((await getCursor(db))?.hash).toBe(node.hashOf(HEAD));
   });
 
@@ -269,7 +309,7 @@ describe("failing safely", () => {
     expect((await getCursor(db))?.block).toBe(8);
     await runToIdle(indexer);
     expect((await getCursor(db))?.block).toBe(HEAD);
-    expect((await db.select().from(trades)).length).toBe(4);
+    expect((await db.select().from(trades)).length).toBe(5);
   });
 
   it("retries in run() with a pause and stops promptly when told to", async () => {
@@ -297,6 +337,101 @@ describe("what the database holds", () => {
     const { indexer } = await indexEverything(new FakeNode(), { overlapBlocks: 20 });
     for (let i = 0; i < 3; i += 1) await indexer.tick();
     expect(await db.select().from(launches).where(eq(launches.curve, CURVE))).toHaveLength(1);
-    expect(await db.select().from(trades)).toHaveLength(4);
+    expect(await db.select().from(trades)).toHaveLength(5);
+  });
+});
+
+describe("holders", () => {
+  it("builds every balance from the token's transfers, and the balances add up to the whole supply", async () => {
+    await indexEverything();
+    const { ledger, token } = fixtureTransfers();
+    const result = await holdersOf(db, token, 100);
+    expect(result.minted).toBe(1_000_000_000n * E18);
+    expect(new Map(result.holders.map((h) => [h.address, h.balance]))).toEqual(new Map([...ledger].filter(([, v]) => v > 0n)));
+    expect(result.holders.reduce((a, h) => a + h.balance, 0n)).toBe(result.minted);
+    // the curve and the factory (reserve) are among them, plus the creator and the traders
+    expect(result.count).toBeGreaterThanOrEqual(3);
+  });
+
+  it("gives the same holders however the blocks are chunked", async () => {
+    await indexEverything(new FakeNode(), { maxBlockRange: 3, overlapBlocks: 2 });
+    const chunked = await dump(db);
+    await clearDatabase(db);
+    await indexEverything(new FakeNode(), { maxBlockRange: 1000 });
+    expect(await dump(db)).toEqual(chunked);
+    expect(chunked.transfers.length).toBe(fixtureTransfers().events.length);
+  });
+
+  it("drops the transfers of a block that a reorg removes, and balances follow", async () => {
+    const { node, indexer } = await indexEverything();
+    const { token } = fixtureTransfers();
+    const before = await holdersOf(db, token, 100);
+
+    // Blocks from 12 on (the graduating buy and everything after it) are replaced by empty ones: their
+    // transfers must disappear too, and what is left must still add up to the supply.
+    node.fork(12, (events) => events.filter((e) => e.block_number < 12));
+    await indexer.tick();
+    const after = await holdersOf(db, token, 100);
+    expect(after.holders).not.toEqual(before.holders);
+    expect(after.holders.reduce((a, h) => a + h.balance, 0n)).toBe(after.minted);
+    const rows = await db.select().from(transfers);
+    expect(rows.some((r) => r.blockNumber === 12)).toBe(false);
+  });
+
+  it("reads a token's transfers only through the token's own address", async () => {
+    const node = new FakeNode();
+    await indexEverything(node);
+    const { token } = fixtureTransfers();
+    expect(node.requests.some((r) => r.startsWith(`getEvents ${token.slice(0, 8)}`))).toBe(true);
+  });
+});
+
+describe("deploy-fee assets", () => {
+  const USDC = "0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343";
+  const feeEvent = () => fixture.factoryEvents.find((e) => BigInt(e.keys[0] ?? "0") === SELECTORS.FeeAssetSet)!;
+  const launchEvent = () => fixture.factoryEvents.find((e) => BigInt(e.keys[0] ?? "0") === SELECTORS.LaunchCreated)!;
+
+  it("records which asset paid the deploy fee, apart from the asset the token trades in", async () => {
+    await indexEverything();
+    const [launch] = await db.select().from(launches);
+    expect(launch).toMatchObject({ quoteToken: STRK, feeToken: STRK });
+  });
+
+  it("a launch paid for in USDC still trades in STRK", async () => {
+    const node = new FakeNode();
+    node.events = node.events.map((e) => (e === launchEvent() ? { ...e, data: [...e.data.slice(0, -1), USDC] } : e));
+    await indexEverything(node);
+    const [launch] = await db.select().from(launches);
+    expect(launch).toMatchObject({ quoteToken: STRK, feeToken: USDC });
+  });
+
+  it("keeps fee asset settings as history and reads the current one back", async () => {
+    await indexEverything();
+    const current = await currentFeeAssets(db);
+    expect(current).toHaveLength(1);
+    expect(current[0]).toMatchObject({ feeToken: STRK, enabled: true, blockNumber: 4 });
+    expect(BigInt(current[0]?.deployFee ?? "0")).toBe(10n * E18);
+  });
+
+  it("lists USDC next to STRK once the factory enables it, and drops it again if that block is reorged away", async () => {
+    const node = new FakeNode();
+    const usdcOn = { ...feeEvent(), block_number: 12, keys: [feeEvent().keys[0]!, USDC], data: ["0x1", "0x1e8480", "0x0"] };
+    node.events.push(usdcOn);
+    const indexer = new Indexer(node, db, options(), silent);
+    await runToIdle(indexer);
+    const both = await currentFeeAssets(db);
+    expect(both.map((r) => r.feeToken).sort()).toEqual([STRK, USDC].sort());
+    expect(BigInt(both.find((r) => r.feeToken === USDC)?.deployFee ?? "0")).toBe(2_000_000n);
+
+    node.fork(12, (events) => events.filter((e) => e !== usdcOn));
+    await indexer.tick();
+    expect((await currentFeeAssets(db)).map((r) => r.feeToken)).toEqual([STRK]);
+  });
+
+  it("an asset switched off stays listed, as disabled, so the app can stop offering it", async () => {
+    const node = new FakeNode();
+    node.events.push({ ...feeEvent(), block_number: 12, data: ["0x0", ...feeEvent().data.slice(1)] });
+    await indexEverything(node);
+    expect((await currentFeeAssets(db))[0]).toMatchObject({ feeToken: STRK, enabled: false, blockNumber: 12 });
   });
 });

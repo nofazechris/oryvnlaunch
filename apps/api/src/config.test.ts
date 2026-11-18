@@ -8,7 +8,10 @@ describe("loadConfig", () => {
     expect(loadConfig({ DATABASE_URL: url })).toEqual({
       databaseUrl: url,
       port: 4000,
-      host: "0.0.0.0",
+      host: "127.0.0.1",
+      trustProxyHops: 0,
+      rateLimitPerMinute: 300,
+      maxImageStorageBytes: 200 * 1024 * 1024,
       corsOrigins: [],
     });
   });

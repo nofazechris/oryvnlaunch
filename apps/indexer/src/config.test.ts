@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import { loadConfig } from "./config.js";
 
 const valid = {
@@ -35,9 +38,9 @@ describe("loadConfig", () => {
   });
 
   it("reports every problem at once, by name", () => {
-    expect(() => loadConfig({})).toThrow(/DATABASE_URL[\s\S]*STARKNET_RPC_URL[\s\S]*FACTORY_ADDRESS/);
+    expect(() => loadConfig({})).toThrow(/DATABASE_URL[\s\S]*STARKNET_RPC_URL/);
     expect(() => loadConfig({})).toThrow(/DATABASE_URL is required \(your Neon connection string\)/);
-    expect(() => loadConfig({})).toThrow(/FACTORY_ADDRESS is required/);
+    expect(() => loadConfig({})).toThrow(/STARKNET_RPC_URL is required/);
   });
 
   it("rejects a malformed factory address, a bad URL and a negative start block", () => {
@@ -61,5 +64,71 @@ describe("loadConfig", () => {
     } catch (error) {
       expect(String(error)).not.toContain("pass@");
     }
+  });
+});
+
+describe("reading the factory from the deployment record", () => {
+  const roots: string[] = [];
+  afterAll(() => roots.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
+
+  /** A fake repo with contracts/deployments/<network>.json, and a nested folder to run from. */
+  function repoWith(network: string, record: unknown | string): { root: string; runFrom: string } {
+    const root = mkdtempSync(join(tmpdir(), "oryvn-config-"));
+    roots.push(root);
+    mkdirSync(join(root, "contracts", "deployments"), { recursive: true });
+    writeFileSync(join(root, "contracts", "deployments", `${network}.json`), typeof record === "string" ? record : JSON.stringify(record));
+    const runFrom = join(root, "apps", "indexer");
+    mkdirSync(runFrom, { recursive: true });
+    return { root, runFrom };
+  }
+  const base = { DATABASE_URL: valid.DATABASE_URL, STARKNET_RPC_URL: valid.STARKNET_RPC_URL };
+  const record = { factory: { address: "0xDEF", deployBlock: 4242 } };
+
+  it("takes the address and the start block from the deployment file, found from a nested folder", () => {
+    const { runFrom } = repoWith("sepolia", record);
+    const config = loadConfig({ ...base, NETWORK: "sepolia" }, { cwd: runFrom });
+    expect(config.factory).toBe("0x" + "0".repeat(61) + "def");
+    expect(config.startBlock).toBe(4242);
+  });
+
+  it("lets START_BLOCK override the recorded block", () => {
+    const { runFrom } = repoWith("sepolia", record);
+    expect(loadConfig({ ...base, NETWORK: "sepolia", START_BLOCK: "5000" }, { cwd: runFrom }).startBlock).toBe(5000);
+  });
+
+  it("lets FACTORY_ADDRESS win over the file, and then does not need one", () => {
+    const config = loadConfig({ ...base, NETWORK: "sepolia", FACTORY_ADDRESS: "0x1" }, { cwd: tmpdir() });
+    expect(config.factory).toBe("0x" + "0".repeat(63) + "1");
+    expect(config.startBlock).toBe(0);
+  });
+
+  it("explains how to fix it when the deployment file does not exist", () => {
+    const { runFrom } = repoWith("devnet", record);
+    expect(() => loadConfig({ ...base, NETWORK: "sepolia" }, { cwd: runFrom })).toThrow(/no deployment record for "sepolia"[\s\S]*deploy\.sh/);
+  });
+
+  it("refuses a record from an older deploy script that did not save the block, instead of starting at 0", () => {
+    const { runFrom } = repoWith("sepolia", { factory: { address: "0xDEF" } });
+    expect(() => loadConfig({ ...base, NETWORK: "sepolia" }, { cwd: runFrom })).toThrow(/does not record the block[\s\S]*START_BLOCK/);
+  });
+
+  it("still works for such a record when START_BLOCK is given", () => {
+    const { runFrom } = repoWith("sepolia", { factory: { address: "0xDEF" } });
+    expect(loadConfig({ ...base, NETWORK: "sepolia", START_BLOCK: "10" }, { cwd: runFrom }).startBlock).toBe(10);
+  });
+
+  it("rejects a deployment file with no usable address or with broken JSON", () => {
+    const noAddress = repoWith("sepolia", { factory: { deployBlock: 1 } });
+    expect(() => loadConfig({ ...base, NETWORK: "sepolia" }, { cwd: noAddress.runFrom })).toThrow(/no valid factory\.address/);
+    const broken = repoWith("sepolia", "{not json");
+    expect(() => loadConfig({ ...base, NETWORK: "sepolia" }, { cwd: broken.runFrom })).toThrow(/not valid JSON/);
+  });
+
+  it("asks for NETWORK or FACTORY_ADDRESS when neither is set", () => {
+    expect(() => loadConfig(base)).toThrow(/set NETWORK[\s\S]*or set FACTORY_ADDRESS/);
+  });
+
+  it("rejects an unknown network name", () => {
+    expect(() => loadConfig({ ...base, NETWORK: "goerli" })).toThrow(/NETWORK must be sepolia, devnet or mainnet/);
   });
 });

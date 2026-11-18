@@ -2,8 +2,8 @@
 // that can grow, fork and roll back on command, plus helpers to read the database back.
 
 import { readFileSync } from "node:fs";
-import { normalizeAddress, type RawEvent } from "@launchpad/chain";
-import { type Db, indexerState, launches, quoteTokenEvents, trades } from "@launchpad/db";
+import { SELECTORS, decodeCurveEvent, decodeFactoryEvent, normalizeAddress, type RawEvent } from "@launchpad/chain";
+import { type Db, feeAssetEvents, indexerState, launches, quoteTokenEvents, trades, transfers } from "@launchpad/db";
 import type { ChainSource, Indexer, TickResult } from "./indexer.js";
 
 export interface Fixture {
@@ -29,6 +29,47 @@ export const HEAD = fixture.capturedAtBlock;
 
 const sameAddress = (a: string, b: string) => BigInt(a) === BigInt(b);
 
+export const ZERO = "0x" + "0".repeat(64);
+const hex = (v: bigint) => "0x" + v.toString(16);
+
+/**
+ * The token's Transfer events for the fixture launch, worked out the way the contracts move tokens:
+ * mint the whole supply to the factory, send the curve its share and the creator theirs when the
+ * launch is created, then move tokens between the curve and each trader on every buy and sell.
+ * (The real-chain version of these events is checked in packages/chain against the token's own
+ * balance_of; this one lets the indexer tests run on the fixture's older launch.)
+ */
+export function fixtureTransfers(): { events: RawEvent[]; ledger: Map<string, bigint>; token: string } {
+  const launch = fixture.factoryEvents.flatMap((raw, i) => decodeFactoryEvent(raw, i) ?? []).find((e) => e.type === "LaunchCreated");
+  if (!launch || launch.type !== "LaunchCreated") throw new Error("fixture has no launch");
+  const total = 1_000_000_000n * E18;
+  const curveShare = (total * 8_000n) / 10_000n;
+  const creatorShare = (total * BigInt(launch.creatorBps)) / 10_000n;
+  const events: RawEvent[] = [];
+  const ledger = new Map<string, bigint>();
+  const move = (block: number, tx: string, from: string, to: string, value: bigint) => {
+    events.push({
+      from_address: launch.token,
+      keys: [hex(SELECTORS.Transfer), from, to],
+      data: [hex(value & ((1n << 128n) - 1n)), hex(value >> 128n)],
+      block_number: block,
+      block_hash: "0x0",
+      transaction_hash: tx,
+    });
+    if (from !== ZERO) ledger.set(from, (ledger.get(from) ?? 0n) - value);
+    ledger.set(to, (ledger.get(to) ?? 0n) + value);
+  };
+  move(launch.blockNumber, launch.transactionHash, ZERO, launch.factory, total);
+  move(launch.blockNumber, launch.transactionHash, launch.factory, launch.curve, curveShare);
+  if (creatorShare > 0n) move(launch.blockNumber, launch.transactionHash, launch.factory, launch.creator, creatorShare);
+  for (const raw of Object.values(fixture.curveEvents).flat()) {
+    const e = decodeCurveEvent(raw, 0);
+    if (e?.type === "TokensBought") move(e.blockNumber, e.transactionHash, e.curve, e.buyer, e.tokensOut);
+    if (e?.type === "TokensSold") move(e.blockNumber, e.transactionHash, e.seller, e.curve, e.tokensIn);
+  }
+  return { events, ledger, token: launch.token };
+}
+
 const realHashes = new Map<number, string>();
 for (const e of [...fixture.factoryEvents, ...Object.values(fixture.curveEvents).flat()]) {
   realHashes.set(e.block_number, e.block_hash);
@@ -37,7 +78,7 @@ for (const e of [...fixture.factoryEvents, ...Object.values(fixture.curveEvents)
 /** A node serving the fixture. Blocks without events get made-up hashes and times. */
 export class FakeNode implements ChainSource {
   head = HEAD;
-  events: RawEvent[] = [...fixture.factoryEvents, ...Object.values(fixture.curveEvents).flat()];
+  events: RawEvent[] = [...fixture.factoryEvents, ...Object.values(fixture.curveEvents).flat(), ...fixtureTransfers().events];
   readonly requests: string[] = [];
   private forks: { fromBlock: number; id: number }[] = [];
   private times = new Map<string, number>();
@@ -125,13 +166,17 @@ export async function dump(db: Db) {
     launches: json(await db.select().from(launches).orderBy(launches.token)),
     trades: json(await db.select().from(trades).orderBy(trades.blockNumber, trades.indexInBlock)),
     quoteTokenEvents: json(await db.select().from(quoteTokenEvents).orderBy(quoteTokenEvents.id)),
+    feeAssetEvents: json(await db.select().from(feeAssetEvents).orderBy(feeAssetEvents.id)),
+    transfers: json(await db.select().from(transfers).orderBy(transfers.blockNumber, transfers.id)),
   };
 }
 
 export async function clearDatabase(db: Db): Promise<void> {
   await db.delete(trades);
+  await db.delete(transfers);
   await db.delete(launches);
   await db.delete(quoteTokenEvents);
+  await db.delete(feeAssetEvents);
   await db.delete(indexerState);
 }
 

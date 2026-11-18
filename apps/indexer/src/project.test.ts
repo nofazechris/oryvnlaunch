@@ -24,6 +24,7 @@ const batch = (overrides: Partial<Batch> = {}): Batch => ({
   toHash: "0x1234",
   factoryEvents,
   curveEvents,
+  tokenEvents: [],
   blockTimes: allBlocks,
   ...overrides,
 });
@@ -34,7 +35,7 @@ describe("applyBatch", () => {
     const once = await dump(db);
     await applyBatch(db, batch());
     expect(await dump(db)).toEqual(once);
-    expect(once.trades).toHaveLength(4);
+    expect(once.trades).toHaveLength(5);
   });
 
   it("refuses an event from a curve whose launch was never indexed, and writes nothing", async () => {
@@ -73,7 +74,7 @@ describe("applyBatch", () => {
     await applyBatch(db, batch({ curveEvents: [...curveEvents].reverse() }));
     const [launch] = await db.select().from(launches);
     expect(launch?.curve).toBe(CURVE);
-    expect(launch?.tradeCount).toBe(4);
+    expect(launch?.tradeCount).toBe(5);
     expect(launch?.graduated).toBe(true);
   });
 });

@@ -11,7 +11,13 @@ try {
 }
 
 const { db, close } = connect(config.databaseUrl);
-const app = await createApp(db, { corsOrigins: config.corsOrigins, logger: true });
+const app = await createApp(db, {
+  corsOrigins: config.corsOrigins,
+  logger: true,
+  trustProxyHops: config.trustProxyHops,
+  rateLimitPerMinute: config.rateLimitPerMinute,
+  maxImageStorageBytes: config.maxImageStorageBytes,
+});
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, async () => {

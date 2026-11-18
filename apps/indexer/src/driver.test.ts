@@ -59,10 +59,11 @@ describe("through the production database driver", () => {
     expect(launch?.launchId).toBe("0");
     // numeric(78,0) must arrive as an exact string, not a rounded JavaScript number
     expect(typeof launch?.quoteReserve).toBe("string");
-    expect(BigInt(launch?.quoteReserve ?? "0")).toBe(750n * E18);
-    expect(BigInt(launch?.volumeQuote ?? "0")).toBe(1_850n * E18);
+    expect(BigInt(launch?.quoteReserve ?? "0")).toBe(769_801_980_198_019_801_980n);
+    expect(BigInt(launch?.volumeQuote ?? "0")).toBe(1_869_801_980_198_019_801_980n);
+    expect(BigInt(launch?.feesTotal ?? "0")).toBe(18_698_019_801_980_198_020n);
 
-    expect(await connection.db.select().from(trades)).toHaveLength(4);
+    expect(await connection.db.select().from(trades)).toHaveLength(5);
     const current = await currentQuoteTokens(connection.db);
     expect(current[0]).toMatchObject({ quoteToken: STRK, enabled: true });
   });
@@ -72,6 +73,6 @@ describe("through the production database driver", () => {
     node.head = HEAD;
     const indexer = new Indexer(node, connection.db, { factory: FACTORY, startBlock: 0, overlapBlocks: 10, maxBlockRange: 1000 });
     expect((await indexer.tick()).status).toBe("idle");
-    expect(await connection.db.select().from(trades)).toHaveLength(4);
+    expect(await connection.db.select().from(trades)).toHaveLength(5);
   });
 });

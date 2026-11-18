@@ -10,6 +10,7 @@
 import {
   type CurveEvent,
   type FactoryEvent,
+  type TokenTransfer,
   initialReserves,
   marketCap,
   spotPrice,
@@ -18,6 +19,7 @@ import {
   type Db,
   desc,
   eq,
+  feeAssetEvents,
   gte,
   indexerState,
   inArray,
@@ -25,6 +27,7 @@ import {
   quoteTokenEvents,
   sql,
   trades,
+  transfers,
 } from "@launchpad/db";
 
 export const CURSOR_KEY = "cursor";
@@ -47,6 +50,7 @@ export interface Batch {
   toHash: string;
   factoryEvents: FactoryEvent[];
   curveEvents: CurveEvent[];
+  tokenEvents: TokenTransfer[];
   /** Unix seconds, for every block that has an event. */
   blockTimes: ReadonlyMap<number, number>;
 }
@@ -77,8 +81,10 @@ export async function applyBatch(db: Db, batch: Batch): Promise<void> {
     for (const row of staleTrades) touched.add(row.curve);
     await tx.delete(trades).where(gte(trades.blockNumber, batch.from));
 
+    await tx.delete(transfers).where(gte(transfers.blockNumber, batch.from));
     await tx.delete(launches).where(gte(launches.createdBlock, batch.from));
     await tx.delete(quoteTokenEvents).where(gte(quoteTokenEvents.blockNumber, batch.from));
+    await tx.delete(feeAssetEvents).where(gte(feeAssetEvents.blockNumber, batch.from));
 
     const staleGraduations = await tx
       .update(launches)
@@ -98,6 +104,22 @@ export async function applyBatch(db: Db, batch: Batch): Promise<void> {
           enabled: event.enabled,
           deployFee: event.deployFee.toString(),
           graduationRaise: event.graduationRaise.toString(),
+          blockNumber: event.blockNumber,
+          indexInBlock: event.indexInBlock,
+        })
+        .onConflictDoNothing();
+    }
+
+    // 2b. Deploy-fee asset changes, kept as history.
+    for (const event of batch.factoryEvents) {
+      if (event.type !== "FeeAssetSet") continue;
+      await tx
+        .insert(feeAssetEvents)
+        .values({
+          id: `${event.blockNumber}:${event.factory}:${event.indexInBlock}`,
+          feeToken: event.feeToken,
+          enabled: event.enabled,
+          deployFee: event.deployFee.toString(),
           blockNumber: event.blockNumber,
           indexInBlock: event.indexInBlock,
         })
@@ -124,6 +146,9 @@ export async function applyBatch(db: Db, batch: Batch): Promise<void> {
           creatorBps: event.creatorBps,
           graduationRaise: event.graduationRaise.toString(),
           deployFee: event.deployFee.toString(),
+          feeToken: event.feeToken,
+          tradeFeeBps: event.tradeFeeBps,
+          creatorFeeShareBps: event.creatorFeeShareBps,
           createdBlock: event.blockNumber,
           createdTx: event.transactionHash,
           createdAt: asDate(batch.blockTimes, event.blockNumber),
@@ -171,6 +196,7 @@ export async function applyBatch(db: Db, batch: Batch): Promise<void> {
           side: buy ? "buy" : "sell",
           trader: buy ? event.buyer : (event as Extract<CurveEvent, { type: "TokensSold" }>).seller,
           quoteAmount: (buy ? event.quoteIn : (event as Extract<CurveEvent, { type: "TokensSold" }>).quoteOut).toString(),
+          fee: event.fee.toString(),
           tokenAmount: (buy ? event.tokensOut : (event as Extract<CurveEvent, { type: "TokensSold" }>).tokensIn).toString(),
           quoteReserve: event.quoteReserve.toString(),
           tokenReserve: event.tokenReserve.toString(),
@@ -183,10 +209,27 @@ export async function applyBatch(db: Db, batch: Batch): Promise<void> {
         .onConflictDoNothing();
     }
 
-    // 5. Snapshots, recomputed from the trades table.
+    // 5. Token transfers, the raw material for holder balances.
+    for (const event of batch.tokenEvents) {
+      await tx
+        .insert(transfers)
+        .values({
+          id: `${event.blockNumber}:${event.token}:${event.indexInBlock}`,
+          token: event.token,
+          from: event.from,
+          to: event.to,
+          value: event.value.toString(),
+          blockNumber: event.blockNumber,
+          indexInBlock: event.indexInBlock,
+          txHash: event.transactionHash,
+        })
+        .onConflictDoNothing();
+    }
+
+    // 6. Snapshots, recomputed from the trades table.
     for (const curve of touched) await refreshSnapshot(tx, curve);
 
-    // 6. Progress commits in the same transaction as the data it describes.
+    // 7. Progress commits in the same transaction as the data it describes.
     for (const [key, value] of [
       [CURSOR_KEY, String(batch.to)],
       [CURSOR_HASH_KEY, batch.toHash],
@@ -210,6 +253,7 @@ async function refreshSnapshot(tx: Tx, curve: string): Promise<void> {
     .select({
       count: sql<number>`count(*)::int`,
       volume: sql<string>`coalesce(sum(${trades.quoteAmount}), 0)::text`,
+      fees: sql<string>`coalesce(sum(${trades.fee}), 0)::text`,
     })
     .from(trades)
     .where(eq(trades.curve, curve));
@@ -233,6 +277,7 @@ async function refreshSnapshot(tx: Tx, curve: string): Promise<void> {
       marketCap: marketCap(reserves.quoteReserve, reserves.tokenReserve).toString(),
       tradeCount: totals?.count ?? 0,
       volumeQuote: totals?.volume ?? "0",
+      feesTotal: totals?.fees ?? "0",
       lastTradeAt: last?.blockTime ?? null,
     })
     .where(eq(launches.curve, curve));

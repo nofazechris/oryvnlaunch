@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "tsup src/main.ts --format esm --clean",
-    "dev": "tsx watch src/main.ts",
-    "start": "node dist/main.js",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "start": "node --env-file-if-exists=../../.env dist/main.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.16",
+    "@electric-sql/pglite-socket": "0.2.19",
     "@nestjs/testing": "12.5.0",
     "@types/node": "24.19.2",
     "tsup": "9.0.0",
