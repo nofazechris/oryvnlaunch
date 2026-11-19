@@ -113,6 +113,20 @@ export async function curveFees(curve: string, signal?: AbortSignal) {
   return parseCurveFees(await callContract(curve, "get_state", [], signal));
 }
 
+/**
+ * How many tokens the curve has sold so far, which is the most it can ever take back: it only returns what
+ * buyers paid in. A wallet can hold more than this (a creator's own allocation was never sold by the curve),
+ * and that extra part cannot be sold to the curve. Same `get_state` answer as above, the fourth pair.
+ */
+export function parseTokensSold(felts: bigint[]): bigint {
+  if (felts.length < 19) throw new RpcError("Unexpected get_state answer from the curve.");
+  return u256At(felts, 6);
+}
+
+export async function curveTokensSold(curve: string, signal?: AbortSignal): Promise<bigint> {
+  return parseTokensSold(await callContract(curve, "get_state", [], signal));
+}
+
 export interface TxOutcome {
   ok: boolean;
   /** Why it failed, when the node says. */

@@ -51,7 +51,7 @@ const REVERTS: [RegExp, string][] = [
   [/CURVE_SOLD_OUT/, "The curve has sold out, so buying is closed. You can still sell."],
   [/CURVE_DUST_TRADE/, "That amount is too small to trade."],
   [/CURVE_ZERO_AMOUNT/, "Enter an amount first."],
-  [/CURVE_SELL_EXCEEDS_SOLD/, "You are trying to sell more than the curve has sold."],
+  [/CURVE_SELL_EXCEEDS_SOLD/, "The curve can only take back as many tokens as it has sold. Try a smaller amount."],
   [/CURVE_QUOTE_PULL_FAILED|CURVE_TOKEN_PULL_FAILED|ERC20: insufficient (balance|allowance)|u256_sub Overflow/i, "Your balance or approval was not enough for this trade."],
   [/Transaction rejected|declin|reject|cancel|abort/i, "You declined the transaction in your wallet. Nothing was sent."],
 ];

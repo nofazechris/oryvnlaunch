@@ -5,7 +5,7 @@ import { sendCalls, useWalletStore } from "@/lib/wallet-store";
 import { useUiStore } from "@/lib/ui-store";
 import { EXPLORER_URL, RPC_URL } from "@/lib/config";
 import { formatUnits, plainUnits, shortAddr } from "@/lib/format";
-import { balanceOf, quoteBuy, quoteSell, waitForTx } from "@/lib/rpc";
+import { balanceOf, curveTokensSold, quoteBuy, quoteSell, waitForTx } from "@/lib/rpc";
 import { buyCalls, friendlyTradeError, parseUnits, sellCalls, withSlippage } from "@/lib/trade-tx";
 import { usePolled, type Token } from "@/lib/useApi";
 import { useWalletAbandoned } from "@/lib/useWalletAbandoned";
@@ -63,6 +63,12 @@ export function TradePanel({ t, onTraded }: { t: Token; onTraded?: () => void })
   );
   const balance = balances.data ? (side === "buy" ? balances.data.quote : balances.data.token) : null;
 
+  // The curve only takes back what it has sold. A wallet can hold more than that (a creator's own allocation
+  // was never sold by the curve), so "sell everything" can ask for more than the curve is able to accept.
+  const sold = usePolled((signal) => curveTokensSold(t.curve, signal), side === "sell" && RPC_URL ? t.curve : null, 8_000);
+  const sellable = side === "sell" && sold.data !== undefined && sold.data !== null ? sold.data : null;
+  const limit = sellable !== null && balance !== null && sellable < balance ? sellable : balance;
+
   // Ask the curve itself what this trade would do. It is the same code that runs on-chain.
   useEffect(() => {
     setPreview(null);
@@ -104,8 +110,9 @@ export function TradePanel({ t, onTraded }: { t: Token; onTraded?: () => void })
   }
 
   const enough = amount !== null && balance !== null && amount <= balance;
-  const tooSmall = !!preview && !preview.soldOut && preview.out === 0n;
-  const ready = !!wallet && !!amount && amount > 0n && enough && !!preview && !preview.soldOut && !tooSmall && !busy;
+  const overSellable = sellable !== null && !!amount && amount > sellable && enough;
+  const tooSmall = !!preview && !preview.soldOut && preview.out === 0n && !overSellable;
+  const ready = !!wallet && !!amount && amount > 0n && enough && !overSellable && !!preview && !preview.soldOut && !tooSmall && !busy;
 
   async function trade() {
     if (!ready || !amount || !preview) return;
@@ -146,8 +153,8 @@ export function TradePanel({ t, onTraded }: { t: Token; onTraded?: () => void })
 
   const chips = [25, 50, 75, 100];
   const fillPercent = (p: number) => {
-    if (balance === null || balance === 0n) return;
-    setText(plainUnits((balance * BigInt(p)) / 100n, inDec));
+    if (limit === null || limit === 0n) return;
+    setText(plainUnits((limit * BigInt(p)) / 100n, inDec));
   };
 
   const accent = side === "buy" ? "#55D69A" : "#FF6868";
@@ -161,7 +168,9 @@ export function TradePanel({ t, onTraded }: { t: Token; onTraded?: () => void })
           ? "Enter an amount"
           : balance !== null && amount > balance
             ? `Not enough ${inSym}`
-            : preview?.soldOut
+            : overSellable
+              ? "More than the curve can take back"
+              : preview?.soldOut
               ? "Curve sold out"
               : tooSmall
                 ? "Amount too small"
@@ -188,7 +197,7 @@ export function TradePanel({ t, onTraded }: { t: Token; onTraded?: () => void })
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 6 }}>
         {chips.map((p) => (
-          <button key={p} onClick={() => fillPercent(p)} disabled={busy || !balance} className="lp-quick" style={{ height: 32, borderRadius: 10, border: "1px solid rgba(255,255,255,0.08)", background: "transparent", color: "#d8d8d8", cursor: busy || !balance ? "default" : "pointer", opacity: balance ? 1 : 0.4, fontFamily: mono, fontSize: 12 }}>{p === 100 ? "Max" : `${p}%`}</button>
+          <button key={p} onClick={() => fillPercent(p)} disabled={busy || !limit} className="lp-quick" style={{ height: 32, borderRadius: 10, border: "1px solid rgba(255,255,255,0.08)", background: "transparent", color: "#d8d8d8", cursor: busy || !limit ? "default" : "pointer", opacity: limit ? 1 : 0.4, fontFamily: mono, fontSize: 12 }}>{p === 100 ? "Max" : `${p}%`}</button>
         ))}
       </div>
 
@@ -206,6 +215,11 @@ export function TradePanel({ t, onTraded }: { t: Token; onTraded?: () => void })
       </div>
 
       {preview?.sellsOut && side === "buy" && <span style={{ fontSize: 12, color: "#F3B65F", lineHeight: 1.5 }}>This buy fills the curve, so it graduates. You only pay for what the curve still has to sell.</span>}
+      {sellable !== null && balance !== null && balance > sellable && (
+        <span style={{ fontSize: 12, color: "#F3B65F", lineHeight: 1.5 }}>
+          The curve can take back up to {formatUnits(sellable, TOKEN_DECIMALS, 4)} {t.sym} right now. Tokens you hold beyond that, such as a creator allocation, can&apos;t be sold to the curve. Max uses that amount.
+        </span>
+      )}
       {previewErr && <span style={{ fontSize: 12, color: "#F3B65F", lineHeight: 1.5 }}>{previewErr}</span>}
       {!RPC_URL && <span style={{ fontSize: 12, color: "#F3B65F", lineHeight: 1.5 }}>Trading needs a Starknet node. Set NEXT_PUBLIC_RPC_URL for this build.</span>}
 

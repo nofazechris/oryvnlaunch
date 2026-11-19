@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { accountDeployed, balanceOf, curveFees, parseCurveFees, quoteBuy, quoteSell, waitForTx } from "./rpc";
+import { accountDeployed, balanceOf, curveFees, parseCurveFees, parseTokensSold, quoteBuy, quoteSell, waitForTx } from "./rpc";
 
 function stubRpc(handler: (method: string, params: any) => unknown) {
   vi.stubGlobal(
@@ -106,5 +106,18 @@ describe("accountDeployed", () => {
     expect(await accountDeployed("0xabc")).toBeNull();
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
     expect(await accountDeployed("0xabc")).toBeNull();
+  });
+});
+
+describe("tokens the curve can take back", () => {
+  it("reads tokens_sold, the fourth pair of get_state, and keeps the high half", () => {
+    const felts = Array(19).fill(0n);
+    felts[6] = 7n;
+    felts[7] = 1n;
+    expect(parseTokensSold(felts)).toBe(7n + (1n << 128n));
+  });
+
+  it("refuses an answer that is too short", () => {
+    expect(() => parseTokensSold([1n])).toThrow();
   });
 });
