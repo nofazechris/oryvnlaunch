@@ -36,7 +36,7 @@ export async function createApp(db: Db, options: AppOptions = {}): Promise<NestF
   const Root = class {};
   Module({ imports: [DatabaseModule.forDb(db, options.maxImageStorageBytes), PriceModule.forService(new PriceService(options.priceFetch)), MarketModule] })(Root);
 
-  const app = await NestFactory.create<NestFastifyApplication>(Root, new FastifyAdapter({ trustProxy: (options.trustProxyHops ? options.trustProxyHops : false) as never, bodyLimit: 16 * 1024, maxParamLength: 100 }), {
+  const app = await NestFactory.create<NestFastifyApplication>(Root, new FastifyAdapter({ trustProxy: (options.trustProxyHops ? options.trustProxyHops : false) as never, bodyLimit: 16 * 1024, routerOptions: { maxParamLength: 100 } } as never), {
     logger: options.logger ? ["error", "warn", "log"] : false,
   });
   applySecurity(app.getHttpAdapter().getInstance(), { rateLimitPerMinute: options.rateLimitPerMinute ?? 300 });

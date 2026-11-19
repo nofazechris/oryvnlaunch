@@ -167,7 +167,7 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
     response = await fetch(API_URL + path, { signal, headers: { accept: "application/json" } });
   } catch (error) {
     if (signal?.aborted) throw error;
-    throw new ApiError("Cannot reach the oryvnlaunch API. Is it running?");
+    throw new ApiError("The data service is not answering. If it was idle it can take about a minute to wake up, so try again shortly.");
   }
   if (!response.ok) {
     let message = `The API answered ${response.status}`;
@@ -216,7 +216,7 @@ export async function uploadImage(file: Blob): Promise<{ hash: string; uri: stri
   try {
     response = await fetch(API_URL + "/images", { method: "POST", headers: { "content-type": file.type }, body: file });
   } catch {
-    throw new ApiError("Cannot reach the oryvnlaunch API. Is it running?");
+    throw new ApiError("The data service is not answering. If it was idle it can take about a minute to wake up, so try again shortly.");
   }
   if (!response.ok) {
     let message = `The upload failed (${response.status})`;

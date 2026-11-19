@@ -3,7 +3,7 @@
 // Hooks that load data from the API and keep it fresh by polling.
 //
 // Each hook returns `{ data, error, loading }` and never throws. `error` is a plain sentence a person
-// can read ("Cannot reach the oryvnlaunch API. Is it running?"); screens show it instead of silently
+// can read ("The data service is not answering. If it was idle it can take about a minute to wake up, so try again shortly."); screens show it instead of silently
 // showing nothing. While a request is in flight after the first one, the previous `data` stays, so a
 // refresh never makes a screen flicker empty.
 

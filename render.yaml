@@ -1,0 +1,44 @@
+# Render blueprint: the API and the indexer, together, on one FREE web service.
+# See docs/free-hosting.md for the whole walkthrough (web app on Vercel, database on Neon).
+#
+# Values marked `sync: false` are secrets or depend on where you deploy. Render asks for them when you create
+# the service. Never put them in this file.
+
+services:
+  - type: web
+    name: oryvnlaunch-api
+    runtime: node
+    plan: free
+    # Neon is in Ohio (us-east-2), so run next to it.
+    region: ohio
+    buildCommand: >-
+      corepack enable
+      && pnpm install --frozen-lockfile --prod=false
+      && pnpm --filter @launchpad/chain build
+      && pnpm --filter @launchpad/db build
+      && pnpm --filter @launchpad/api build
+      && pnpm --filter @launchpad/indexer build
+    startCommand: node scripts/start-free.mjs
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Read the factory address and start block from contracts/deployments/sepolia.json.
+      - key: NETWORK
+        value: sepolia
+      # Render's proxy reaches us from outside the container, and puts the real caller address in a header.
+      - key: HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: POLL_INTERVAL_MS
+        value: "10000"
+      # Neon's POOLED connection string (the host contains "-pooler").
+      - key: DATABASE_URL
+        sync: false
+      # Your Starknet Sepolia node (for example the Chainstack URL from your .env).
+      - key: STARKNET_RPC_URL
+        sync: false
+      # Where the website lives, exactly, with no trailing slash: https://your-app.vercel.app
+      - key: CORS_ORIGIN
+        sync: false
