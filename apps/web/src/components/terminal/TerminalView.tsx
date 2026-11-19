@@ -54,13 +54,55 @@ export function TerminalView({ address }: { address: string | null }) {
   const [aiMsgs, setAiMsgs] = useState<Msg[]>([]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  // Panels can be folded away so the chart gets the room. The choice is remembered.
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
+  // Full chart: every panel and card steps aside and the chart fills the screen.
+  const [focus, setFocus] = useState(false);
+  const [vh, setVh] = useState(800);
 
   useEffect(() => hydrate(), [hydrate]);
 
+  useEffect(() => {
+    try {
+      setLeftOpen(localStorage.getItem("oryvn.term.left") !== "0");
+      setRightOpen(localStorage.getItem("oryvn.term.right") !== "0");
+    } catch {
+      /* ignore */
+    }
+    const onResize = () => setVh(window.innerHeight);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Full chart also folds the main menu, and puts it back the way the user had it afterwards. Esc leaves.
+  useEffect(() => {
+    if (!focus) return;
+    window.dispatchEvent(new CustomEvent("oryvn-sidebar", { detail: true }));
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFocus(false); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      let folded = false;
+      try { folded = localStorage.getItem("oryvn.sidebar") === "1"; } catch { /* ignore */ }
+      window.dispatchEvent(new CustomEvent("oryvn-sidebar", { detail: folded }));
+    };
+  }, [focus]);
+
+  function togglePanel(side: "left" | "right") {
+    const set = side === "left" ? setLeftOpen : setRightOpen;
+    set((open) => {
+      try { localStorage.setItem(`oryvn.term.${side}`, open ? "0" : "1"); } catch { /* ignore */ }
+      return !open;
+    });
+  }
+
   // Breakpoints account for the dashboard sidebar (up to 236px) beside the content.
   const isMobile = w < 1060;
-  const showLeft = w >= 1400;
-  const showChips = !showLeft;
+  const wide = w >= 1400;
+  const showLeft = wide && leftOpen && !focus;
+  const showChips = !focus && !showLeft;
   const connected = !!wallet;
 
   const launches = useLaunches({ sort: "newest" });
@@ -86,8 +128,8 @@ export function TerminalView({ address }: { address: string | null }) {
     setTf(autoInterval(ageMins));
   }, [ageMins === null, t?.addr]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const nC = isMobile ? 48 : 72;
-  const chartH = isMobile ? 260 : 340;
+  const nC = focus ? 160 : isMobile ? 48 : 72;
+  const chartH = focus ? Math.max(isMobile ? 300 : 420, vh - (isMobile ? 230 : 270)) : isMobile ? 260 : 340;
   const candlesQ = useCandles(chosen, tf, nC);
   const tradesQ = useTrades(chosen, 30);
   const trades = tradesQ.data?.items ?? [];
@@ -146,7 +188,32 @@ export function TerminalView({ address }: { address: string | null }) {
     }
   }
 
-  const gridStyle: CSSProperties = { flex: 1, display: "grid", gridTemplateColumns: isMobile ? "minmax(0,1fr)" : showLeft ? "minmax(0,22fr) minmax(0,53fr) minmax(0,25fr)" : "minmax(0,1fr) minmax(300px,340px)", width: "100%", maxWidth: 1760, margin: "0 auto" };
+  const showRightPanel = isMobile || (rightOpen && !focus);
+  const showRightRail = !isMobile && !rightOpen && !focus;
+  const showLeftRail = wide && !leftOpen && !focus && !isMobile;
+  let cols: string;
+  if (focus || isMobile) cols = "minmax(0,1fr)";
+  else if (wide && leftOpen && rightOpen) cols = "minmax(0,22fr) minmax(0,53fr) minmax(0,25fr)";
+  else if (wide && leftOpen) cols = "minmax(0,22fr) minmax(0,78fr) 44px";
+  else if (wide) cols = `44px minmax(0,1fr) ${rightOpen ? "minmax(300px,340px)" : "44px"}`;
+  else cols = `minmax(0,1fr) ${rightOpen ? "minmax(300px,340px)" : "44px"}`;
+  const gridStyle: CSSProperties = { flex: 1, display: "grid", gridTemplateColumns: cols, width: "100%", maxWidth: focus ? 2200 : 1760, margin: "0 auto" };
+  const chevron = (d: string) => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+  );
+  const collapseBtn = (side: "left" | "right") => (
+    <button onClick={() => togglePanel(side)} aria-label={side === "left" ? "Hide token list" : "Hide trade panel"} title={side === "left" ? "Hide token list" : "Hide trade panel"} className="lp-iconbtn" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.09)", background: "transparent", color: "#A1A1A1", cursor: "pointer", display: "grid", placeItems: "center" }}>
+      {chevron(side === "left" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6")}
+    </button>
+  );
+  const rail = (side: "left" | "right", label: string) => (
+    <aside style={{ position: "sticky", top: 64, height: "calc(100vh - 64px)", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "14px 0", borderLeft: side === "right" ? "1px solid rgba(255,255,255,0.07)" : undefined, borderRight: side === "left" ? "1px solid rgba(255,255,255,0.07)" : undefined }}>
+      <button onClick={() => togglePanel(side)} aria-label={`Show ${label.toLowerCase()}`} title={`Show ${label.toLowerCase()}`} className="lp-iconbtn" style={{ width: 30, height: 30, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.09)", background: "transparent", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}>
+        {chevron(side === "left" ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6")}
+      </button>
+      <span style={{ writingMode: "vertical-rl", fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: "#696969" }}>{label}</span>
+    </aside>
+  );
   const rightStyle: CSSProperties = isMobile
     ? { position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, maxHeight: "88vh", overflowY: "auto", padding: "14px 14px 24px", background: "#090909", borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTop: "1px solid rgba(255,255,255,0.1)", display: sheet ? "flex" : "none", flexDirection: "column", gap: 12 }
     : { position: "sticky", top: 64, alignSelf: "start", padding: "clamp(14px,2vw,24px) clamp(14px,2vw,24px) 24px 0", display: "flex", flexDirection: "column", gap: 12, minWidth: 0 };
@@ -202,7 +269,7 @@ export function TerminalView({ address }: { address: string | null }) {
           <aside style={{ position: "sticky", top: 64, height: "calc(100vh - 64px)", display: "flex", flexDirection: "column", borderRight: "1px solid rgba(255,255,255,0.07)", minWidth: 0 }}>
             <div style={{ padding: "18px 16px 10px", display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <span style={{ fontSize: 20, letterSpacing: "-0.02em" }}>Discover</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>{collapseBtn("left")}<span style={{ fontSize: 20, letterSpacing: "-0.02em" }}>Discover</span></span>
                 <span style={{ fontSize: 11, color: "#696969", letterSpacing: "0.06em", textTransform: "uppercase" }}>{launches.data?.total ?? 0} launches</span>
               </div>
               <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 14, background: "#0d0d0d", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -237,6 +304,8 @@ export function TerminalView({ address }: { address: string | null }) {
           </aside>
         )}
 
+        {showLeftRail && rail("left", "Discover")}
+
         {/* CENTER */}
         <section style={{ minWidth: 0, padding: "clamp(14px,2vw,24px)", display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center", justifyContent: "space-between" }}>
@@ -262,6 +331,7 @@ export function TerminalView({ address }: { address: string | null }) {
             </div>
           </div>
 
+          {!focus && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(118px,1fr))", gap: 1, borderRadius: 18, overflow: "hidden", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.07)" }}>
             {[
               { label: "Market cap", value: usdOr(t.mcap, unit, strkUsd, `${t.mcapStr} ${unit}`), sub: strkUsd === null ? "" : `${t.mcapStr} ${unit}` },
@@ -276,7 +346,7 @@ export function TerminalView({ address }: { address: string | null }) {
                 <span style={{ fontFamily: mono, fontSize: 11, color: "#696969", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minHeight: 14 }}>{s.sub}</span>
               </div>
             ))}
-          </div>
+          </div>)}
 
           {/* CHART */}
           <div style={{ ...card, padding: "16px 16px 10px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -301,6 +371,10 @@ export function TerminalView({ address }: { address: string | null }) {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 17 6-6 4 4 8-8" /></svg>
                   </button>
                 </div>
+                <button onClick={() => setFocus((f) => !f)} aria-label={focus ? "Exit full chart" : "Full chart"} title={focus ? "Exit full chart (Esc)" : "Full chart"} className="lp-iconbtn" style={{ height: 30, padding: isMobile ? "0 9px" : "0 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: focus ? "#fff" : "transparent", color: focus ? "#050505" : "#d0d0d0", cursor: "pointer", display: "flex", alignItems: "center", gap: 7, fontFamily: "var(--font-geist-sans),sans-serif", fontSize: 12, fontWeight: 600 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">{focus ? <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /> : <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />}</svg>
+                  {!isMobile && (focus ? "Exit full chart" : "Full chart")}
+                </button>
               </div>
             </div>
             <TerminalChart candles={candles} type={type} hover={hover} setHover={setHover} height={chartH} intervalSeconds={INTERVAL_SECONDS[tf]} />
@@ -309,6 +383,7 @@ export function TerminalView({ address }: { address: string | null }) {
             </div>
           </div>
 
+          {!focus && (<>
           {/* BONDING */}
           <div style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -347,11 +422,15 @@ export function TerminalView({ address }: { address: string | null }) {
               {trades.length === 0 && <div style={{ padding: "28px 8px", textAlign: "center", color: "#A1A1A1", fontSize: 14 }}>{tradesQ.loading ? "Loading…" : "No trades yet."}</div>}
             </div>
           </div>
-          {isMobile && <div style={{ height: 80 }} />}
+          </>)}
+          {isMobile && !focus && <div style={{ height: 80 }} />}
         </section>
 
         {/* RIGHT: TRADE */}
+        {showRightRail && rail("right", "Trade")}
+        {showRightPanel && (
         <aside style={rightStyle}>
+          {!isMobile && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", color: "#696969" }}>Trade</span>{collapseBtn("right")}</div>}
           {isMobile && (
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "0 2px", position: "relative" }}>
               <span style={{ width: 40, height: 4, borderRadius: 9, background: "#333" }} />
@@ -374,10 +453,11 @@ export function TerminalView({ address }: { address: string | null }) {
             <span style={{ display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontWeight: 600, fontSize: 14 }}>Ask AI about this token</span><span style={{ fontSize: 12, color: "#A1A1A1" }}>Answers from indexed data, with sources</span></span>
           </button>
         </aside>
+        )}
       </main>
 
       {/* MOBILE STICKY BAR */}
-      {isMobile && !sheet && (
+      {isMobile && !sheet && !focus && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 45, display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, padding: "12px 14px", background: "rgba(5,5,5,0.92)", backdropFilter: "blur(14px)", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
           <button onClick={() => setSheet(true)} style={{ height: 50, borderRadius: 16, border: 0, fontWeight: 600, fontSize: 15, background: "#55D69A", color: "#050505", cursor: "pointer" }}>Buy</button>
           <button onClick={() => setSheet(true)} style={{ height: 50, borderRadius: 16, border: 0, fontWeight: 600, fontSize: 15, background: "#FF6868", color: "#050505", cursor: "pointer" }}>Sell</button>

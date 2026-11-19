@@ -144,6 +144,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           {isMobile && (
             <button onClick={() => setMobileOpen(true)} aria-label="Menu" className="lp-iconbtn" style={{ width: 40, height: 40, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.09)", background: "transparent", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}>{ic(<path d="M4 7h16M4 12h16M4 17h16" />)}</button>
           )}
+          {!isMobile && (
+            <button onClick={toggleCollapse} aria-label={collapsed ? "Expand menu" : "Collapse menu"} title={collapsed ? "Expand menu" : "Collapse menu"} className="lp-iconbtn" style={{ width: 40, height: 40, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.09)", background: "transparent", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}>
+              {ic(<><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16" /></>)}
+            </button>
+          )}
           <span style={{ fontSize: 18, letterSpacing: "-0.02em", fontWeight: 500 }}>{current?.label ?? ""}</span>
           <div style={{ flex: 1 }} />
           <button onClick={() => setSearch(true)} aria-label="Search" className="lp-searchbtn" style={{ display: "flex", alignItems: "center", gap: 10, height: 40, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.09)", background: "#0d0d0d", color: "#A1A1A1", cursor: "pointer", fontSize: 13 }}>
