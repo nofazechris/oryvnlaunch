@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "oryvnlaunch — Launch Tokens. Think Smarter.",
+  title: "oryvnlaunch | Launch Tokens. Think Smarter.",
   description:
     "The next generation of token launches, powered by AI. Create, launch and discover tokens on Starknet.",
 };

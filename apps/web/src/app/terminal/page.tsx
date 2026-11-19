@@ -2,7 +2,7 @@ import { DashboardShell } from "@/components/dash/DashboardShell";
 import { TerminalView } from "@/components/terminal/TerminalView";
 
 export const metadata = {
-  title: "Terminal — oryvnlaunch",
+  title: "Terminal | oryvnlaunch",
   description: "Live chart, bonding progress and trades for every token on the curve.",
 };
 

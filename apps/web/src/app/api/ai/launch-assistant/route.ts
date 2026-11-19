@@ -83,7 +83,7 @@ function fallback(idea: string): AssistantResult {
       "Palette: one bold accent on a dark base, high contrast.",
       "Tone: warm, plain-spoken and community-first.",
     ],
-    post: `Introducing ${a} ${b} — a community token on Starknet for everyone into ${theme}. Launching on a bonding curve. Come say hi and help shape it.`,
+    post: `Introducing ${a} ${b}, a community token on Starknet for everyone into ${theme}. Launching on a bonding curve. Come say hi and help shape it.`,
   };
 }
 

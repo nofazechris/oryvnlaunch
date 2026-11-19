@@ -2,7 +2,7 @@ import { DashboardShell } from "@/components/dash/DashboardShell";
 import { TokenDetail } from "@/components/token/TokenDetail";
 
 export const metadata = {
-  title: "Token — oryvnlaunch",
+  title: "Token | oryvnlaunch",
   description: "Token detail: price, bonding progress, trades and launch facts.",
 };
 

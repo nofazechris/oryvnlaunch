@@ -15,7 +15,7 @@ function fallback(prompt: string): string {
     );
   }
   return (
-    "Total supply is fixed at deploy — the token has no mint function, so no more can ever be created. 80% of the supply is sold through the bonding curve, the rest is reserved, and your creator allocation (at most 5%) is a small slice shown publicly on the token page. Larger creator allocations are visible in holder concentration and tend to make buyers more cautious."
+    "Total supply is fixed at deploy. The token has no mint function, so no more can ever be created. 80% of the supply is sold through the bonding curve, the rest is reserved, and your creator allocation (at most 5%) is a small slice shown publicly on the token page. Larger creator allocations are visible in holder concentration and tend to make buyers more cautious."
   );
 }
 

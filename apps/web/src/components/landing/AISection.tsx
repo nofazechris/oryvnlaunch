@@ -16,7 +16,7 @@ const DEFAULT_IDEAS: Idea[] = [
   { name: "Shipwright", ticker: "SHIP", line: "For the people who ship, every week." },
 ];
 const DEFAULT_DESC =
-  "A community token for people building on Starknet — a shared badge for builders, hackers and the folks who show up to help.";
+  "A community token for people building on Starknet, a shared badge for builders, hackers and the folks who show up to help.";
 const IDEA_COLORS: [string, string][] = [
   ["#73D9E8", "#B7F0F5"],
   ["#B69AFF", "#F38FC4"],
@@ -148,7 +148,7 @@ export function AISection() {
 
           {aiReady && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 14, lineHeight: 1.55, color: "#d8d8d8" }}>
-              <span>Here are three directions. Pick one to send to the studio — you can edit everything before deploying.</span>
+              <span>Here are three directions. Pick one to send to the studio. You can edit everything before deploying.</span>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {ideas.map((idea, i) => (
                   <button

@@ -43,3 +43,10 @@ contracts/deployments/devnet.json
 # local junk
 contracts/nul
 contracts/snfoundry_trace/
+
+# kept local, not published
+.claude/
+docs/security.md
+packages/db/scripts/roles.sql
+brand/posts/*/03-compare-named.*
+brand/posts/*/src/03-compare-named.*

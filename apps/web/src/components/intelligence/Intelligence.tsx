@@ -262,7 +262,7 @@ export function Intelligence() {
                 <span style={{ padding: 16, borderRadius: 18, background: "#0b0b0b", border: "1px solid rgba(255,255,255,0.07)", fontSize: 14, lineHeight: 1.6, color: "#e0e0e0", whiteSpace: "pre-wrap" }}>{f.a}</span>
               </div>
             ))}
-            <span style={{ fontSize: 12, color: "#5a5a5a", lineHeight: 1.5 }}>AI reads indexed data only. It can&apos;t trade, move funds or see anything off-chain. No safety score — just evidence.</span>
+            <span style={{ fontSize: 12, color: "#5a5a5a", lineHeight: 1.5 }}>AI reads indexed data only. It can&apos;t trade, move funds or see anything off-chain. No safety score, just evidence.</span>
           </div>
         )}
       </main>
