@@ -5,6 +5,8 @@ import { NETWORK, NETWORK_LABEL } from "@/lib/config";
 import { shortAddr } from "@/lib/format";
 import { installedWallets, useWalletStore } from "@/lib/wallet-store";
 import { WalletLogo } from "@/components/ui/WalletLogo";
+import { looksLikePhone, walletPath } from "@/lib/mobile";
+import { PhoneWalletGuide } from "./PhoneWalletGuide";
 
 const WALLETS = [
   { name: "Argent X", color: "linear-gradient(135deg,#FF9865,#FF7777)", initial: "A" },
@@ -68,6 +70,9 @@ export function WalletConnectModal({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const showConnected = done || (!!wallet && wasConnected.current);
+  // What this device can do: a phone with no wallet on the page cannot install an extension.
+  const path = typeof window === "undefined" ? "choose" : walletPath({ phone: looksLikePhone(navigator.userAgent, navigator.maxTouchPoints ?? 0), installed: installedWallets() });
+  const phone = typeof window !== "undefined" && looksLikePhone(navigator.userAgent, navigator.maxTouchPoints ?? 0);
 
   return (
     <div onClick={onClose} role="dialog" aria-modal="true" aria-label="Connect wallet" style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", display: "grid", placeItems: "center", padding: 18 }}>
@@ -96,6 +101,9 @@ export function WalletConnectModal({ onClose }: { onClose: () => void }) {
             <button onClick={() => { disconnect(); onClose(); }} className="lp-disconnect" style={{ height: 48, borderRadius: 14, border: "1px solid rgba(255,104,104,0.4)", background: "transparent", color: "#FF6868", cursor: "pointer", fontWeight: 600 }}>Disconnect wallet</button>
           </div>
         ) : (
+          path === "open-in-wallet-app" ? (
+            <PhoneWalletGuide />
+          ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <span style={{ fontSize: 13, color: "#A1A1A1", display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />{NETWORK_LABEL[NETWORK]}</span>
             {WALLETS.map((wl) => (
@@ -103,13 +111,14 @@ export function WalletConnectModal({ onClose }: { onClose: () => void }) {
                 <WalletLogo name={wl.name} color={wl.color} initial={wl.initial} />
                 <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
                   <span style={{ fontWeight: 600, fontSize: 15 }}>{wl.name}</span>
-                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>Browser extension</span>
+                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>{phone ? "Wallet app" : "Browser extension"}</span>
                 </span>
               </button>
             ))}
             {error && <span style={{ fontSize: 13, color: "#FF6868", lineHeight: 1.5 }}>{error}</span>}
             {installedWallets().length === 0 && <span style={{ fontSize: 13, color: "#F3B65F", lineHeight: 1.5 }}>No wallet was found in this browser. Install Argent X or Braavos, then reload this page.</span>}
           </div>
+          )
         )}
 
         <span style={{ fontSize: 12, color: "#696969", lineHeight: 1.5, marginTop: "auto" }}>We only ever see your address. Every transaction needs your approval in the wallet.</span>

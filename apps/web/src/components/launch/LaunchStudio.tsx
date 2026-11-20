@@ -9,6 +9,7 @@ import { paletteFor } from "@/lib/art";
 import { api, uploadImage, type ApiLaunch } from "@/lib/api";
 import type { ArtSuggestion } from "@/lib/avatar-art";
 import { PictureIdeas } from "./PictureIdeas";
+import { FundsHelp } from "@/components/wallet/FundsHelp";
 import { EXPLORER_URL, FACTORY_ADDRESS, NETWORK, NETWORK_LABEL, RPC_URL } from "@/lib/config";
 import { balanceOf } from "@/lib/rpc";
 import { fmtUsd, formatUnits, shortAddr, toNumber, toUsd } from "@/lib/format";
@@ -695,6 +696,8 @@ export function LaunchStudio() {
               <span>Wallet connected. Click <strong>Deploy Token</strong> and {walletName} will open for you to approve.</span>
             </div>
           )}
+
+          {step === 3 && connected && wallet && fundsKnown && !fundsOk && <FundsHelp address={wallet} />}
 
           {/* Nav buttons */}
           {step < 4 && (

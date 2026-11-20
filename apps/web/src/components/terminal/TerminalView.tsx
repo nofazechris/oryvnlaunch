@@ -289,7 +289,7 @@ export function TerminalView({ address }: { address: string | null }) {
               </div>
               <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 14, background: "#0d0d0d", border: "1px solid rgba(255,255,255,0.06)" }}>
                 {SORT_LABELS.map(([k, l]) => (
-                  <button key={k} onClick={() => setListTab(k)} style={{ flex: 1, height: 30, borderRadius: 10, border: 0, cursor: "pointer", fontSize: 12, fontWeight: 500, background: listTab === k ? "#1d1d1d" : "transparent", color: listTab === k ? "#fff" : "#696969" }}>{l}</button>
+                  <button key={k} onClick={() => setListTab(k)} className="lp-tap-s" style={{ flex: 1, height: 30, borderRadius: 10, border: 0, cursor: "pointer", fontSize: 12, fontWeight: 500, background: listTab === k ? "#1d1d1d" : "transparent", color: listTab === k ? "#fff" : "#696969" }}>{l}</button>
                 ))}
               </div>
               {searchBox}
@@ -332,12 +332,12 @@ export function TerminalView({ address }: { address: string | null }) {
                   <span style={{ fontSize: 15, color: "#A1A1A1" }}>${t.sym}</span>
                   <span style={{ padding: "4px 10px", borderRadius: 999, background: t.graduated ? "rgba(182,154,255,0.12)" : "rgba(115,217,232,0.12)", color: t.graduated ? "#B69AFF" : "#73D9E8", fontSize: 12, fontWeight: 600 }}>{t.graduated ? "Graduated" : "Bonding"}</span>
                 </div>
-                <button onClick={() => { navigator.clipboard?.writeText(t.addr).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1400); }} className="lp-copyaddr" style={{ display: "flex", alignItems: "center", gap: 8, padding: 0, border: 0, background: "transparent", color: "#A1A1A1", cursor: "pointer", fontFamily: mono, fontSize: 12 }}>
+                <button onClick={() => { navigator.clipboard?.writeText(t.addr).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1400); }} className="lp-copyaddr lp-tap-link" style={{ display: "flex", alignItems: "center", gap: 8, padding: 0, border: 0, background: "transparent", color: "#A1A1A1", cursor: "pointer", fontFamily: mono, fontSize: 12 }}>
                   {t.addrShort}
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="12" height="12" rx="3" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
                   <span style={{ color: "#55D69A" }}>{copied ? "Copied" : ""}</span>
                 </button>
-                <Link href={t.href} style={{ fontSize: 12, color: "#73D9E8" }}>Token page →</Link>
+                <Link href={t.href} className="lp-tap-link" style={{ fontSize: 12, color: "#73D9E8" }}>Token page →</Link>
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
@@ -367,7 +367,7 @@ export function TerminalView({ address }: { address: string | null }) {
           <div style={{ ...card, padding: "16px 16px 10px", display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 12, background: "#111" }}>
-                {TFS.map((f) => (<button key={f} onClick={() => { pickedTf.current = true; setTf(f); setHover(null); }} style={{ height: 28, padding: "0 10px", borderRadius: 9, border: 0, cursor: "pointer", fontFamily: mono, fontSize: 12, background: tf === f ? "#fff" : "transparent", color: tf === f ? "#050505" : "#A1A1A1" }}>{f}</button>))}
+                {TFS.map((f) => (<button key={f} onClick={() => { pickedTf.current = true; setTf(f); setHover(null); }} className="lp-tap-s" style={{ height: 28, padding: "0 10px", borderRadius: 9, border: 0, cursor: "pointer", fontFamily: mono, fontSize: 12, background: tf === f ? "#fff" : "transparent", color: tf === f ? "#050505" : "#A1A1A1" }}>{f}</button>))}
               </div>
               <div style={{ display: "flex", gap: 14, alignItems: "center", fontFamily: mono, fontSize: 11, color: "#696969", flexWrap: "wrap" }}>
                 {hc && (
@@ -379,14 +379,14 @@ export function TerminalView({ address }: { address: string | null }) {
                   </>
                 )}
                 <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 10, background: "#111" }}>
-                  <button onClick={() => setType("candle")} aria-label="Candles" style={{ width: 28, height: 24, borderRadius: 7, border: 0, cursor: "pointer", background: type === "candle" ? "#2a2a2a" : "transparent", color: "#fff", display: "grid", placeItems: "center" }}>
+                  <button onClick={() => setType("candle")} aria-label="Candles" className="lp-tap-s" style={{ width: 28, height: 24, borderRadius: 7, border: 0, cursor: "pointer", background: type === "candle" ? "#2a2a2a" : "transparent", color: "#fff", display: "grid", placeItems: "center" }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M7 3v18M17 3v18" /><rect x="4" y="7" width="6" height="8" rx="1" /><rect x="14" y="9" width="6" height="6" rx="1" /></svg>
                   </button>
-                  <button onClick={() => setType("line")} aria-label="Line" style={{ width: 28, height: 24, borderRadius: 7, border: 0, cursor: "pointer", background: type === "line" ? "#2a2a2a" : "transparent", color: "#fff", display: "grid", placeItems: "center" }}>
+                  <button onClick={() => setType("line")} aria-label="Line" className="lp-tap-s" style={{ width: 28, height: 24, borderRadius: 7, border: 0, cursor: "pointer", background: type === "line" ? "#2a2a2a" : "transparent", color: "#fff", display: "grid", placeItems: "center" }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 17 6-6 4 4 8-8" /></svg>
                   </button>
                 </div>
-                <button onClick={() => setFocus((f) => !f)} aria-label={focus ? "Exit full chart" : "Full chart"} title={focus ? "Exit full chart (Esc)" : "Full chart"} className="lp-iconbtn" style={{ height: 30, padding: isMobile ? "0 9px" : "0 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: focus ? "#fff" : "transparent", color: focus ? "#050505" : "#d0d0d0", cursor: "pointer", display: "flex", alignItems: "center", gap: 7, fontFamily: "var(--font-geist-sans),sans-serif", fontSize: 12, fontWeight: 600 }}>
+                <button onClick={() => setFocus((f) => !f)} aria-label={focus ? "Exit full chart" : "Full chart"} title={focus ? "Exit full chart (Esc)" : "Full chart"} className="lp-iconbtn lp-tap-s" style={{ height: 30, padding: isMobile ? "0 9px" : "0 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: focus ? "#fff" : "transparent", color: focus ? "#050505" : "#d0d0d0", cursor: "pointer", display: "flex", alignItems: "center", gap: 7, fontFamily: "var(--font-geist-sans),sans-serif", fontSize: 12, fontWeight: 600 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">{focus ? <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /> : <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />}</svg>
                   {!isMobile && (focus ? "Exit full chart" : "Full chart")}
                 </button>
@@ -449,7 +449,7 @@ export function TerminalView({ address }: { address: string | null }) {
           {isMobile && (
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "0 2px", position: "relative" }}>
               <span style={{ width: 40, height: 4, borderRadius: 9, background: "#333" }} />
-              <button onClick={() => setSheet(false)} aria-label="Close" style={{ position: "absolute", right: 16, top: 0, width: 32, height: 32, borderRadius: "50%", border: 0, background: "#191919", color: "#fff", cursor: "pointer" }}>✕</button>
+              <button onClick={() => setSheet(false)} aria-label="Close" className="lp-close" style={{ position: "absolute", right: 16, top: 0, width: 32, height: 32, borderRadius: "50%", border: 0, background: "#191919", color: "#fff", cursor: "pointer" }}>✕</button>
             </div>
           )}
           <TradePanel t={t} />

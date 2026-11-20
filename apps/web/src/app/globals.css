@@ -177,3 +177,14 @@ input[type="range"] {
     animation: none !important;
   }
 }
+
+/* Phones and tablets: a finger needs a bigger target than a mouse pointer does (about 40px, never under 36px). */
+@media (pointer: coarse) {
+  .lp-tap { min-height: 40px; min-width: 40px; }
+  .lp-tap-s { min-height: 36px; min-width: 36px; }
+  .lp-tap-link { display: inline-flex; align-items: center; min-height: 40px; }
+  nav a, footer a { display: inline-flex; align-items: center; min-height: 40px; }
+  .lp-quick, .lp-copyaddr { min-height: 40px; }
+  .lp-close { min-height: 40px; min-width: 40px; }
+  .lp-term-link { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+}

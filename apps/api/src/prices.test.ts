@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { createTestDb, type TestDb } from "@launchpad/db/testing";
 import { createApp } from "./app.js";
-import { type FetchLike, PriceService } from "./prices.js";
+import { type FetchLike, PriceService, defaultSources } from "./prices.js";
 
 const ok = (usd: unknown): FetchLike => async () => ({ ok: true, json: async () => ({ starknet: { usd } }) });
 const FRESH = 60_000;
@@ -112,5 +112,64 @@ describe("GET /prices when the source is down", () => {
     expect(r.json().STRK).toBeNull();
     await app.close();
     await testDb.close();
+  });
+});
+
+describe("PriceService backups", () => {
+  const sources = defaultSources({});
+  const answers = (by: Record<string, unknown | "fail" | "down">): FetchLike => async (url) => {
+    const hit = Object.keys(by).find((k) => url.includes(k));
+    const v = hit ? by[hit] : "fail";
+    if (v === "down") throw new Error("network");
+    if (v === "fail") return { ok: false, json: async () => ({}) };
+    return { ok: true, json: async () => v };
+  };
+  const svc = (fetchImpl: FetchLike, clock = { t: 1_000_000 }) => ({ s: new PriceService(fetchImpl, () => clock.t, FRESH, MAX, sources[0]!.url, sources.slice(1), () => undefined), clock });
+
+  it("uses CoinGecko when it answers, and asks nobody else", async () => {
+    const asked: string[] = [];
+    const { s } = svc(async (url) => (asked.push(url), { ok: true, json: async () => ({ starknet: { usd: 0.03 } }) }));
+    expect(await s.strk()).toMatchObject({ usd: 0.03 });
+    expect(asked).toHaveLength(1);
+  });
+
+  it("falls back to Coinbase when CoinGecko is rate limited, reading its string price", async () => {
+    const { s } = svc(answers({ "coingecko.com": "fail", "coinbase.com": { data: { base: "STRK", currency: "USD", amount: "0.0297" } } }));
+    expect(await s.strk()).toMatchObject({ usd: 0.0297, stale: false });
+  });
+
+  it("falls back to Kraken when the first two are down, reading its last trade price", async () => {
+    const { s } = svc(answers({ "coingecko.com": "down", "coinbase.com": "fail", "kraken.com": { error: [], result: { STRKUSD: { c: ["0.0295", "100"] } } } }));
+    expect(await s.strk()).toMatchObject({ usd: 0.0295 });
+  });
+
+  it("skips a source that answers with nonsense and tries the next", async () => {
+    const { s } = svc(answers({ "coingecko.com": { starknet: { usd: -5 } }, "coinbase.com": { data: { amount: "not a number" } }, "kraken.com": { result: { STRKUSD: { c: ["0.031"] } } } }));
+    expect(await s.strk()).toMatchObject({ usd: 0.031 });
+  });
+
+  it("keeps the last good price, marked old, when every source fails, then says it does not know", async () => {
+    let up = true;
+    const clock = { t: 1_000_000 };
+    const { s } = svc(async (url) => (up && url.includes("coingecko") ? { ok: true, json: async () => ({ starknet: { usd: 0.03 } }) } : { ok: false, json: async () => ({}) }), clock);
+    expect(await s.strk()).toMatchObject({ usd: 0.03, stale: false });
+    up = false;
+    clock.t += FRESH + 1;
+    expect(await s.strk()).toMatchObject({ usd: 0.03, stale: true });
+    clock.t += MAX;
+    expect(await s.strk()).toBeNull();
+  });
+
+  it("sends the CoinGecko key when one is configured, and not otherwise", () => {
+    expect(defaultSources({})[0]!.headers).toBeUndefined();
+    expect(defaultSources({ COINGECKO_API_KEY: "k" })[0]!.headers).toEqual({ "x-cg-demo-api-key": "k" });
+  });
+
+  it("logs why a source failed without printing any key", async () => {
+    const lines: string[] = [];
+    const s = new PriceService(answers({}), () => 1, FRESH, MAX, sources[0]!.url, sources.slice(1), (m) => lines.push(m));
+    await s.strk();
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    expect(lines.join(" ")).toMatch(/coingecko/);
   });
 });

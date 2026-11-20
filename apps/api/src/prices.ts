@@ -12,6 +12,35 @@ import { Controller, Get, Global, Inject, Injectable, Module, type DynamicModule
 /** The source. CoinGecko's public endpoint needs no key; its rate limit is why we cache. */
 export const PRICE_URL = "https://api.coingecko.com/api/v3/simple/price?ids=starknet&vs_currencies=usd";
 
+/** One place to ask for the price: where, with what headers, and how to read its answer. */
+export interface PriceSource {
+  name: string;
+  url: string;
+  headers?: Record<string, string>;
+  /** The dollar price in the answer, or anything else (which is treated as "no price"). */
+  parse(body: unknown): unknown;
+}
+
+const asNumber = (v: unknown) => (typeof v === "string" ? Number(v) : v);
+
+/**
+ * Where to look, in order. CoinGecko first (a free key in COINGECKO_API_KEY keeps it from being rate limited on a
+ * shared host), then two exchanges' public price endpoints, used only when the one before it failed.
+ */
+export function defaultSources(env: Record<string, string | undefined> = process.env): PriceSource[] {
+  const key = env.COINGECKO_API_KEY?.trim();
+  return [
+    { name: "coingecko", url: PRICE_URL, headers: key ? { "x-cg-demo-api-key": key } : undefined, parse: (b) => (b as { starknet?: { usd?: unknown } })?.starknet?.usd },
+    { name: "coinbase", url: "https://api.coinbase.com/v2/prices/STRK-USD/spot", parse: (b) => asNumber((b as { data?: { amount?: unknown } })?.data?.amount) },
+    {
+      name: "kraken",
+      url: "https://api.kraken.com/0/public/Ticker?pair=STRKUSD",
+      // The last trade price is the first entry of "c" for the one pair Kraken answers with.
+      parse: (b) => asNumber((Object.values((b as { result?: Record<string, { c?: unknown[] }> })?.result ?? {})[0] as { c?: unknown[] } | undefined)?.c?.[0]),
+    },
+  ];
+}
+
 export interface UsdQuote {
   usd: number;
   /** When we fetched it, ISO. */
@@ -35,6 +64,9 @@ export class PriceService {
     /** After this long without a successful fetch, say we do not know instead of serving an old number. */
     private readonly maxAgeMs = 15 * 60_000,
     private readonly url = PRICE_URL,
+    /** Backups tried in order if the main url fails. */
+    private readonly fallbacks: PriceSource[] = defaultSources().slice(1),
+    private readonly log: (message: string) => void = (m) => console.error(m),
   ) {}
 
   /** STRK in US dollars, or null when there is no trustworthy quote. */
@@ -53,18 +85,29 @@ export class PriceService {
     return { usd: this.quote.usd, fetchedAt: new Date(this.quote.at).toISOString(), stale: since >= this.freshMs };
   }
 
+  /** Ask each source in turn and keep the first sensible answer. A failure is logged, never fatal. */
   private async refresh(): Promise<void> {
-    try {
-      const response = await this.fetchImpl(this.url, { signal: AbortSignal.timeout(5_000), headers: { accept: "application/json" } });
-      if (!response.ok) return;
-      const body = (await response.json()) as { starknet?: { usd?: unknown } };
-      const usd = body?.starknet?.usd;
-      // A zero, negative, absurd or non-numeric answer is a broken source, not a price.
-      if (typeof usd !== "number" || !Number.isFinite(usd) || usd <= 0 || usd > 1_000) return;
-      this.quote = { usd, at: this.now() };
-    } catch {
-      /* keep whatever we had */
+    const main: PriceSource = this.url === PRICE_URL ? defaultSources()[0]! : { name: "main", url: this.url, parse: (b) => (b as { starknet?: { usd?: unknown } })?.starknet?.usd };
+    for (const source of [main, ...this.fallbacks]) {
+      try {
+        const response = await this.fetchImpl(source.url, { signal: AbortSignal.timeout(5_000), headers: { accept: "application/json", ...source.headers } });
+        if (!response.ok) {
+          this.log(`[prices] ${source.name} answered not-ok`);
+          continue;
+        }
+        const usd = source.parse(await response.json());
+        // A zero, negative, absurd or non-numeric answer is a broken source, not a price.
+        if (typeof usd !== "number" || !Number.isFinite(usd) || usd <= 0 || usd > 1_000) {
+          this.log(`[prices] ${source.name} gave an unusable answer`);
+          continue;
+        }
+        this.quote = { usd, at: this.now() };
+        return;
+      } catch (error) {
+        this.log(`[prices] ${source.name} could not be reached (${error instanceof Error ? error.name : "error"})`);
+      }
     }
+    /* every source failed: keep whatever we had */
   }
 }
 

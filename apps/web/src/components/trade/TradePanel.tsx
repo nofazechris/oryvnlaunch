@@ -209,7 +209,7 @@ export function TradePanel({ t, onTraded }: { t: Token; onTraded?: () => void })
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ color: "#A1A1A1" }}>Slippage</span>
           <div style={{ display: "flex", gap: 4 }}>
-            {SLIPPAGES.map((v) => (<button key={v} onClick={() => setSlip(v)} disabled={busy} style={{ height: 26, padding: "0 9px", borderRadius: 8, border: 0, cursor: "pointer", fontFamily: mono, fontSize: 11, background: slip === v ? "#2a2a2a" : "#141414", color: slip === v ? "#fff" : "#A1A1A1" }}>{v / 100}%</button>))}
+            {SLIPPAGES.map((v) => (<button key={v} onClick={() => setSlip(v)} disabled={busy} className="lp-tap-s" style={{ height: 26, padding: "0 9px", borderRadius: 8, border: 0, cursor: "pointer", fontFamily: mono, fontSize: 11, background: slip === v ? "#2a2a2a" : "#141414", color: slip === v ? "#fff" : "#A1A1A1" }}>{v / 100}%</button>))}
           </div>
         </div>
       </div>

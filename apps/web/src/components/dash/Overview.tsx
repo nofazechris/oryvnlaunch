@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useAuthStore } from "@/lib/auth-store";
 import { useWalletStore } from "@/lib/wallet-store";
 import { useUiStore } from "@/lib/ui-store";
-import { useActivity, useLaunches, useStats, useStrkUsd, type Token } from "@/lib/useApi";
+import { useActivity, useFeeAssets, useLaunches, usePolled, useStats, useStrkUsd, type Token } from "@/lib/useApi";
+import { RPC_URL } from "@/lib/config";
+import { balanceOf } from "@/lib/rpc";
+import { STARTER_STRK } from "@/lib/mobile";
 import { onboardingSteps } from "@/lib/onboarding";
 import { usdOr } from "@/lib/format";
 import { TokenAvatar } from "@/components/ui/TokenAvatar";
@@ -55,13 +58,18 @@ export function Overview() {
   // Asked of the API by wallet, not picked out of the newest list, so an older launch is never missed.
   const mineQ = useLaunches({ creator: wallet ?? undefined }, 10_000, !!wallet);
   const mine = wallet ? mineQ.data?.tokens ?? [] : [];
+  // Does the wallet hold any test STRK yet? Read from the chain, so the step ticks itself after the faucet pays out.
+  const feeAssets = useFeeAssets();
+  const strkAddress = feeAssets.data?.find((a) => a.symbol === "STRK")?.address;
+  const strk = usePolled((signal) => balanceOf(strkAddress!, wallet!, signal), wallet && strkAddress && RPC_URL ? `${wallet}:${strkAddress}` : null, 15_000);
   const myActivity = useActivity({ wallet: wallet ?? undefined, limit: 50 }, !!wallet, 10_000);
   const who = session?.method === "google" ? session.email : "there";
 
-  const ICONS: Record<string, IconName> = { account: "check", wallet: "wallet", launch: "rocket", trade: "curve" };
+  const ICONS: Record<string, IconName> = { account: "check", wallet: "wallet", funds: "sparkles", launch: "rocket", trade: "curve" };
   const steps = onboardingSteps({
     connected,
     restoring,
+    funded: connected ? (RPC_URL ? (strk.data !== undefined ? strk.data >= STARTER_STRK : null) : false) : null,
     launched: connected && mineQ.data ? mine.map((t) => ({ name: t.name, href: t.href })) : null,
     traded: connected && myActivity.data ? myActivity.data.some((e) => e.kind === "buy" || e.kind === "sell") : null,
   }).map((s) => ({ ...s, icon: ICONS[s.key] as IconName, action: s.connect ? () => setPanel("wallet") : undefined }));
@@ -97,6 +105,7 @@ export function Overview() {
                 </span>
               </div>
             );
+            if (s.href && s.external) return <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" className="lp-explore-card" style={{ display: "block", borderRadius: 16 }}>{inner}</a>;
             if (s.href) return <Link key={s.label} href={s.href} className="lp-explore-card" style={{ display: "block", borderRadius: 16 }}>{inner}</Link>;
             if (s.action) return <button key={s.label} onClick={s.action} className="lp-explore-card" style={{ display: "block", padding: 0, border: 0, background: "transparent", color: "inherit", cursor: "pointer", borderRadius: 16 }}>{inner}</button>;
             return <div key={s.label}>{inner}</div>;
@@ -107,7 +116,7 @@ export function Overview() {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <span style={{ fontSize: 20, letterSpacing: "-0.02em" }}>Latest launches</span>
-          {everyone.length > 0 && <Link href="/explore" style={{ fontSize: 13, color: "#A1A1A1" }}>See all {launches.data?.total ?? everyone.length} →</Link>}
+          {everyone.length > 0 && <Link href="/explore" className="lp-tap-link" style={{ fontSize: 13, color: "#A1A1A1" }}>See all {launches.data?.total ?? everyone.length} →</Link>}
         </div>
         {latest.length > 0 ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,260px),1fr))", gap: 14 }}>

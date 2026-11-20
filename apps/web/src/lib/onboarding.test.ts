@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { onboardingSteps, type StepInput } from "./onboarding";
 
-const base: StepInput = { connected: false, restoring: false, launched: null, traded: null };
+const base: StepInput = { connected: false, restoring: false, launched: null, funded: null, traded: null };
 const by = (i: Partial<StepInput>) => Object.fromEntries(onboardingSteps({ ...base, ...i }).map((s) => [s.key, s]));
 const mine = [{ name: "Ticker", href: "/token?t=0x1" }];
 
@@ -45,6 +45,33 @@ describe("onboarding steps", () => {
   it("offers to connect only when nothing is connected or being restored", () => {
     expect(by({}).wallet).toMatchObject({ done: false, connect: true });
     expect(by({ connected: true }).wallet).toMatchObject({ done: true });
+  });
+
+  it("sends someone with no test STRK to the official faucet, in a new tab", () => {
+    const s = by({ connected: true, funded: false });
+    expect(s.funds).toMatchObject({ done: false, href: "https://faucet.starknet.io", external: true, label: "Get free test STRK" });
+  });
+
+  it("ticks the test STRK step by itself once the wallet holds some", () => {
+    expect(by({ connected: true, funded: true }).funds).toMatchObject({ done: true, label: "Test STRK in your wallet" });
+  });
+
+  it("does not claim the wallet is empty while the balance is still being read", () => {
+    const s = by({ connected: true, funded: null });
+    expect(s.funds!.done).toBe(false);
+    expect(s.funds!.hint).toContain("Checking");
+    expect(s.funds!.href).toBeUndefined();
+  });
+
+  it("asks for a wallet before pointing at the faucet, since the faucet needs an address", () => {
+    const s = by({ connected: false });
+    expect(s.funds).toMatchObject({ done: false });
+    expect(s.funds!.href).toBeUndefined();
+    expect(s.funds!.hint).toContain("Connect your wallet");
+  });
+
+  it("puts the steps in the order a newcomer does them", () => {
+    expect(onboardingSteps(base).map((x) => x.key)).toEqual(["account", "wallet", "funds", "launch", "trade"]);
   });
 
   it("ticks the trade step once the wallet has traded", () => {

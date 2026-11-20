@@ -105,7 +105,7 @@ export function Explore() {
         <div style={{ maxWidth: 1440, margin: "0 auto", padding: "12px clamp(18px,5vw,72px)", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <div className="lp-noscroll" style={{ display: "flex", gap: 4, overflowX: "auto", flex: "1 1 auto", minWidth: 0 }}>
             {Object.entries(TABS).map(([k, t]) => (
-              <button key={k} onClick={() => setTab(k)} style={pill(tab === k)}>{t.label}</button>
+              <button key={k} onClick={() => setTab(k)} className="lp-tap" style={pill(tab === k)}>{t.label}</button>
             ))}
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 10, height: 40, padding: "0 14px", borderRadius: 999, background: "#0d0d0d", border: "1px solid rgba(255,255,255,0.09)", flex: "1 1 240px", maxWidth: 340 }}>
@@ -117,10 +117,10 @@ export function Explore() {
             {assets.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
           <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 999, background: "#0d0d0d", border: "1px solid rgba(255,255,255,0.09)" }}>
-            <button onClick={() => setGridView(true)} aria-label="Grid view" style={{ width: 34, height: 32, borderRadius: 999, border: 0, cursor: "pointer", background: gridView ? "#252525" : "transparent", color: "#fff", display: "grid", placeItems: "center" }}>
+            <button onClick={() => setGridView(true)} aria-label="Grid view" className="lp-tap" style={{ width: 34, height: 32, borderRadius: 999, border: 0, cursor: "pointer", background: gridView ? "#252525" : "transparent", color: "#fff", display: "grid", placeItems: "center" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></svg>
             </button>
-            <button onClick={() => setGridView(false)} aria-label="List view" style={{ width: 34, height: 32, borderRadius: 999, border: 0, cursor: "pointer", background: !gridView ? "#252525" : "transparent", color: "#fff", display: "grid", placeItems: "center" }}>
+            <button onClick={() => setGridView(false)} aria-label="List view" className="lp-tap" style={{ width: 34, height: 32, borderRadius: 999, border: 0, cursor: "pointer", background: !gridView ? "#252525" : "transparent", color: "#fff", display: "grid", placeItems: "center" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
             </button>
           </div>
@@ -131,7 +131,7 @@ export function Explore() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {Object.entries(STAGES).map(([k, f]) => (
-              <button key={k} onClick={() => setStage(k)} style={{ height: 32, padding: "0 12px", borderRadius: 999, border: 0, cursor: "pointer", fontSize: 13, background: stage === k ? "#1b1b1b" : "transparent", color: stage === k ? "#fff" : "#8a8a8a", display: "flex", alignItems: "center", gap: 7 }}>
+              <button key={k} onClick={() => setStage(k)} className="lp-tap" style={{ height: 32, padding: "0 12px", borderRadius: 999, border: 0, cursor: "pointer", fontSize: 13, background: stage === k ? "#1b1b1b" : "transparent", color: stage === k ? "#fff" : "#8a8a8a", display: "flex", alignItems: "center", gap: 7 }}>
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: f.dot }} />{f.label}
               </button>
             ))}

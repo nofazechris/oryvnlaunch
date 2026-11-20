@@ -105,7 +105,7 @@ export function TerminalChart({ candles: c, type, hover, setHover, height: H, in
   }
 
   return (
-    <div ref={wrapRef} style={{ position: "relative", width: "100%", height: H }}>
+    <div ref={wrapRef} style={{ position: "relative", width: "100%", minWidth: 0, height: H, overflow: "hidden" }}>
       <svg width={W} height={H} style={{ display: "block", cursor: "crosshair" }} onMouseMove={move} onMouseLeave={() => setHover(null)}>
         {/* gridlines + price axis */}
         {[0, 1, 2, 3, 4].map((g) => {
@@ -114,7 +114,7 @@ export function TerminalChart({ candles: c, type, hover, setHover, height: H, in
           return (
             <g key={"g" + g}>
               <line x1={0} x2={plotW} y1={yy} y2={yy} stroke="rgba(255,255,255,0.05)" />
-              <text x={plotW + 10} y={yy + 4} fill="#696969" fontSize={10.5} fontFamily="var(--font-geist-mono), monospace">{fmtP(p)}</text>
+              <text x={plotW + 10} y={yy + 4} fill="#696969" fontSize={11} fontFamily="var(--font-geist-mono), monospace">{fmtP(p)}</text>
             </g>
           );
         })}
@@ -160,14 +160,14 @@ export function TerminalChart({ candles: c, type, hover, setHover, height: H, in
         {/* last price */}
         <line x1={x(c.length - 1)} x2={plotW} y1={ly} y2={ly} stroke="rgba(255,255,255,0.25)" strokeDasharray="3 4" />
         <rect x={plotW + 4} y={ly - 10} width={padR - 6} height={20} rx={6} fill="#fff" />
-        <text x={plotW + 10} y={ly + 4} fill="#050505" fontSize={10.5} fontWeight={600} fontFamily="var(--font-geist-mono), monospace">{fmtP(last.c)}</text>
+        <text x={plotW + 10} y={ly + 4} fill="#050505" fontSize={11} fontWeight={600} fontFamily="var(--font-geist-mono), monospace">{fmtP(last.c)}</text>
 
         {/* time axis */}
         {labelIdx.map((i, n) => {
           const t = c[i]?.t;
           if (!t) return null;
           return (
-            <text key={"t" + n} x={Math.min(Math.max(x(i), 24), plotW - 24)} y={H - 4} fill="#696969" fontSize={10.5} textAnchor="middle" fontFamily="var(--font-geist-mono), monospace">
+            <text key={"t" + n} x={Math.min(Math.max(x(i), 24), plotW - 24)} y={H - 4} fill="#696969" fontSize={11} textAnchor="middle" fontFamily="var(--font-geist-mono), monospace">
               {timeLabel(t, intervalSeconds)}
             </text>
           );
