@@ -20,6 +20,7 @@ import { useWalletAbandoned } from "@/lib/useWalletAbandoned";
 import { Contour } from "@/components/landing/Contour";
 import { AiOfflineNotice } from "@/components/ui/AiOfflineNotice";
 import { explorerTx } from "@/lib/safe";
+import { walletLabel } from "@/lib/wallet-label";
 
 type FormState = {
   name: string;
@@ -202,7 +203,7 @@ export function LaunchStudio() {
     8_000,
   );
   // A brand-new wallet has an address but no account on-chain until it is activated, and cannot sign before then.
-  const walletName = provider ?? "your wallet";
+  const walletName = provider ? walletLabel(provider) : "your wallet";
   const need = fee ? BigInt(fee.deployFee) : 0n;
   const payingInStrk = !!fee && !!curveAsset && fee.address === curveAsset.address;
   const feeShort = balances.data && fee ? balances.data.feeBal < (payingInStrk ? need + GAS_BUFFER : need) : false;

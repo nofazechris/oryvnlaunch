@@ -6,6 +6,7 @@ import { shortAddr } from "@/lib/format";
 import { installedWallets, useWalletStore } from "@/lib/wallet-store";
 import { WalletLogo } from "@/components/ui/WalletLogo";
 import { looksLikePhone, walletPath } from "@/lib/mobile";
+import { walletLabel, walletNote } from "@/lib/wallet-label";
 import { PhoneWalletGuide } from "./PhoneWalletGuide";
 
 const WALLETS = [
@@ -90,13 +91,13 @@ export function WalletConnectModal({ onClose }: { onClose: () => void }) {
         ) : connecting ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: "10px 0", textAlign: "center" }}>
             <Spinner />
-            <span style={{ fontSize: 17 }}>Waiting for {connecting}</span>
-            <span style={{ fontSize: 13, color: "#A1A1A1", lineHeight: 1.6, maxWidth: 300 }}>Approve the connection in the {connecting} window. If nothing opened, click the {connecting} icon in your browser&apos;s toolbar.</span>
+            <span style={{ fontSize: 17 }}>Waiting for {walletLabel(connecting)}</span>
+            <span style={{ fontSize: 13, color: "#A1A1A1", lineHeight: 1.6, maxWidth: 300 }}>Approve the connection in the {walletLabel(connecting)} window. If nothing opened, click the {walletLabel(connecting)} icon in your browser&apos;s toolbar.</span>
             <button onClick={onClose} style={{ marginTop: 4, border: 0, background: "transparent", color: "#A1A1A1", fontSize: 13, cursor: "pointer" }}>Cancel</button>
           </div>
         ) : showConnected ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <span style={{ fontSize: 13, color: "#A1A1A1", display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />{provider ?? "Wallet"} · {NETWORK_LABEL[NETWORK]}</span>
+            <span style={{ fontSize: 13, color: "#A1A1A1", display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />{provider ? walletLabel(provider) : "Wallet"} · {NETWORK_LABEL[NETWORK]}</span>
             <div style={{ padding: 14, borderRadius: 18, background: "#0a0a0a", fontFamily: mono, fontSize: 13, wordBreak: "break-all" }}>{wallet}</div>
             <button onClick={() => { disconnect(); onClose(); }} className="lp-disconnect" style={{ height: 48, borderRadius: 14, border: "1px solid rgba(255,104,104,0.4)", background: "transparent", color: "#FF6868", cursor: "pointer", fontWeight: 600 }}>Disconnect wallet</button>
           </div>
@@ -110,13 +111,13 @@ export function WalletConnectModal({ onClose }: { onClose: () => void }) {
               <button key={wl.name} onClick={() => void connect(wl.name)} className="lp-walletopt" style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 18, border: "1px solid rgba(255,255,255,0.09)", background: "#141414", color: "#fff", cursor: "pointer", textAlign: "left" }}>
                 <WalletLogo name={wl.name} color={wl.color} initial={wl.initial} />
                 <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ fontWeight: 600, fontSize: 15 }}>{wl.name}</span>
-                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>{phone ? "Wallet app" : "Browser extension"}</span>
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>{walletLabel(wl.name)}</span>
+                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>{walletNote(wl.name, phone)}</span>
                 </span>
               </button>
             ))}
             {error && <span style={{ fontSize: 13, color: "#FF6868", lineHeight: 1.5 }}>{error}</span>}
-            {installedWallets().length === 0 && <span style={{ fontSize: 13, color: "#F3B65F", lineHeight: 1.5 }}>No wallet was found in this browser. Install Argent X or Braavos, then reload this page.</span>}
+            {installedWallets().length === 0 && <span style={{ fontSize: 13, color: "#F3B65F", lineHeight: 1.5 }}>No wallet was found in this browser. Install Ready Wallet or Braavos, then reload this page.</span>}
           </div>
           )
         )}

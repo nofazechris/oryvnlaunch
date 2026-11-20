@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 import { installedWallets, useWalletStore } from "@/lib/wallet-store";
 import { looksLikePhone, walletPath } from "@/lib/mobile";
+import { walletLabel, walletNote } from "@/lib/wallet-label";
 import { PhoneWalletGuide } from "@/components/wallet/PhoneWalletGuide";
 import { NETWORK, NETWORK_LABEL } from "@/lib/config";
 import { Contour } from "@/components/landing/Contour";
@@ -76,8 +77,8 @@ export default function LoginPage() {
               <button key={w.name} onClick={() => void wallet(w.name)} disabled={!!connecting} className="lp-walletopt" style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 16, border: "1px solid rgba(255,255,255,0.09)", background: "#141414", color: "#fff", cursor: connecting ? "default" : "pointer", textAlign: "left", opacity: connecting && connecting !== w.name ? 0.5 : 1 }}>
                 <WalletLogo name={w.name} color={w.color} initial={w.initial} />
                 <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ fontWeight: 600, fontSize: 15 }}>{w.name}</span>
-                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>{connecting === w.name ? "Approve the connection in your wallet…" : "Browser extension"}</span>
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>{walletLabel(w.name)}</span>
+                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>{connecting === w.name ? "Approve the connection in your wallet…" : walletNote(w.name, false)}</span>
                 </span>
                 {connecting === w.name && (
                   <svg width="22" height="22" viewBox="0 0 44 44" fill="none" aria-hidden="true">

@@ -1,6 +1,6 @@
 "use client";
 
-// The user's Starknet wallet, connected through the extension they already have (Argent X or Braavos).
+// The user's Starknet wallet, connected through the extension they already have (Ready, formerly Argent X, or Braavos).
 //
 // Nothing here ever sees a key or a seed phrase: the extension holds them. We only ask it for the
 // account address and, later, ask it to sign and send transactions the user approves one by one.
@@ -10,6 +10,7 @@ import { create } from "zustand";
 import { EXPECTED_CHAIN_IDS, NETWORK, NETWORK_LABEL } from "./config";
 import type { WalletCall } from "./launch-tx";
 import { accountDeployed } from "./rpc";
+import { walletLabel } from "./wallet-label";
 
 const KEY = "oryvn.wallet";
 /** How long, and how often, to look for a remembered wallet that has not put itself on the page yet. */
@@ -97,7 +98,7 @@ const unsupported = (message: string) => /not supported|unsupported|unknown meth
 
 /** Shown only after the wallet has already failed to send, when its account turns out not to exist on-chain yet. */
 export const NOT_ACTIVATED = (name: string) =>
-  `Your ${name} account is not activated on ${NETWORK_LABEL[NETWORK]} yet, so it cannot sign. Open ${name}, make sure it is on ${NETWORK_LABEL[NETWORK]}, and choose "Activate" or "Deploy account" (it needs a little STRK for the network fee). Then try again.`;
+  `Your ${walletLabel(name)} account is not activated on ${NETWORK_LABEL[NETWORK]} yet, so it cannot sign. Open ${walletLabel(name)}, make sure it is on ${NETWORK_LABEL[NETWORK]}, and choose "Activate" or "Deploy account" (it needs a little STRK for the network fee). Then try again.`;
 
 /** Which wallet extensions are installed in this browser right now. */
 export function installedWallets(): string[] {
@@ -131,10 +132,10 @@ async function diagnose(name: string, wallet: InjectedWallet, address: string | 
     await wallet.request({ type: "wallet_switchStarknetChain", params: { chainId: CHAIN_HEX[NETWORK] ?? EXPECTED_CHAIN_IDS[0] } });
   } catch (e) {
     const detail = describeWalletError(e);
-    throw new Error(looksDeclined(detail) ? `You declined switching ${name} to ${NETWORK_LABEL[NETWORK]}.` : `Switch ${name} to ${NETWORK_LABEL[NETWORK]}, then retry.`);
+    throw new Error(looksDeclined(detail) ? `You declined switching ${walletLabel(name)} to ${NETWORK_LABEL[NETWORK]}.` : `Switch ${walletLabel(name)} to ${NETWORK_LABEL[NETWORK]}, then retry.`);
   }
   const after = await chainId(wallet);
-  if (after && !EXPECTED_CHAIN_IDS.includes(after)) throw new Error(`${name} is still not on ${NETWORK_LABEL[NETWORK]}. Switch it, then retry.`);
+  if (after && !EXPECTED_CHAIN_IDS.includes(after)) throw new Error(`${walletLabel(name)} is still not on ${NETWORK_LABEL[NETWORK]}. Switch it, then retry.`);
   return true;
 }
 
@@ -266,19 +267,19 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   connect: async (name) => {
     const wallet = injected(name);
     if (!wallet) {
-      set({ error: `${name} was not found in this browser. Install the extension, then try again.` });
+      set({ error: `${walletLabel(name)} was not found in this browser. Install the extension, then try again.` });
       return;
     }
     set({ connecting: name, error: null });
     try {
       const address = await requestAccounts(wallet, false);
       if (!address) {
-        set({ connecting: null, error: `${name} did not share an account. Unlock it and try again.` });
+        set({ connecting: null, error: `${walletLabel(name)} did not share an account. Unlock it and try again.` });
         return;
       }
       const id = await chainId(wallet);
       if (EXPECTED_CHAIN_IDS.length > 0 && id && !EXPECTED_CHAIN_IDS.includes(id)) {
-        set({ connecting: null, error: `Switch ${name} to ${NETWORK_LABEL[NETWORK]}, then connect again.` });
+        set({ connecting: null, error: `Switch ${walletLabel(name)} to ${NETWORK_LABEL[NETWORK]}, then connect again.` });
         return;
       }
       try {
@@ -290,7 +291,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     } catch (e) {
       const detail = describeWalletError(e);
       console.error(`[wallet] ${name} connection failed:`, e);
-      set({ connecting: null, error: looksDeclined(detail) ? "The connection was declined in the wallet." : `${name} could not connect: ${detail.slice(0, 160)}` });
+      set({ connecting: null, error: looksDeclined(detail) ? "The connection was declined in the wallet." : `${walletLabel(name)} could not connect: ${detail.slice(0, 160)}` });
     }
   },
 
