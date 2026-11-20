@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callClaude, guardAi, readJson } from "@/lib/ai/claude";
+import { callModel, guardAi, readJson } from "@/lib/ai/claude";
 
 export const runtime = "nodejs";
 
@@ -63,6 +63,6 @@ export async function POST(req: Request) {
   if (!messages.length) return NextResponse.json({ error: "Ask a question." }, { status: 400 });
 
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
-  const text = await callClaude({ system: buildSystem(context), messages, maxTokens: 350 });
+  const text = await callModel({ system: buildSystem(context), messages, maxTokens: 350 });
   return NextResponse.json({ text: (text ?? "").trim() || fallback(context, lastUser) }, { headers: { "cache-control": "no-store" } });
 }

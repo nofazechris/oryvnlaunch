@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callClaude, guardAi, readJson } from "@/lib/ai/claude";
+import { callModel, guardAi, readJson } from "@/lib/ai/claude";
 
 export const runtime = "nodejs";
 
@@ -31,6 +31,6 @@ export async function POST(req: Request) {
   }
   if (!prompt) return NextResponse.json({ error: "Nothing to explain." }, { status: 400 });
 
-  const text = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: prompt }], maxTokens: 300 });
+  const text = await callModel({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: prompt }], maxTokens: 300 });
   return NextResponse.json({ text: (text ?? "").trim() || fallback(prompt) }, { headers: { "cache-control": "no-store" } });
 }

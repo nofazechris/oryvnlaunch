@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callClaude, guardAi, readJson } from "@/lib/ai/claude";
+import { callModel, guardAi, readJson } from "@/lib/ai/claude";
 
 export const runtime = "nodejs";
 
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const text = await callClaude({
+  const text = await callModel({
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: JSON.stringify(portfolio) }],
     maxTokens: 260,

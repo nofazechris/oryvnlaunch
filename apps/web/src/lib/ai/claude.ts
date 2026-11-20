@@ -1,67 +1,7 @@
-// Server-only helper for calling the Anthropic Messages API. Never import in client code.
-// Returns the concatenated text, or null when no key is configured or the call fails —
-// callers fall back to deterministic local output so the UI always works.
+// Shared helpers for the AI routes: reading a model's JSON answer, and the guard that sits in front of every route.
+// Talking to the model itself lives in ./model.ts.
 
-interface ClaudeMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-/** True when the server has an Anthropic key. Without one every AI route answers with basic canned text. */
-export function aiConfigured(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY;
-}
-
-let warnedNoKey = false;
-
-export async function callClaude(opts: {
-  system: string;
-  messages: ClaudeMessage[];
-  maxTokens?: number;
-}): Promise<string | null> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
-    if (!warnedNoKey) {
-      warnedNoKey = true;
-      console.warn("[ai] ANTHROPIC_API_KEY is not set, so AI features return basic canned answers. Add it to apps/web/.env.local and restart.");
-    }
-    return null;
-  }
-  const model = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: opts.maxTokens ?? 500,
-        system: opts.system,
-        messages: opts.messages,
-      }),
-    });
-    if (!res.ok) {
-      // Say why, without ever logging the key: a wrong key, an unknown model or no credit all look the same to a user.
-      let reason = "";
-      try {
-        const body = (await res.json()) as { error?: { type?: string; message?: string } };
-        reason = `${body.error?.type ?? ""} ${body.error?.message ?? ""}`.trim();
-      } catch {
-        /* no body */
-      }
-      console.error(`[ai] Anthropic answered HTTP ${res.status} for model "${model}": ${reason || "no details"}`);
-      return null;
-    }
-    const data = (await res.json()) as { content?: { type: string; text?: string }[] };
-    return data.content?.map((c) => c.text ?? "").join("") ?? "";
-  } catch (error) {
-    console.error("[ai] could not reach Anthropic:", error instanceof Error ? error.message : error);
-    return null;
-  }
-}
+export { aiConfigured, callModel } from "./model";
 
 /** Extract the first {...} JSON object from a model response. */
 export function extractJson(text: string): unknown | null {

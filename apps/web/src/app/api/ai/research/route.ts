@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { callClaude, extractJson, guardAi, readJson } from "@/lib/ai/claude";
+import { callModel, extractJson, guardAi, readJson } from "@/lib/ai/claude";
 
 export const runtime = "nodejs";
 
 const SYSTEM_PROMPT =
   "You are a token research analyst on a Starknet launchpad. Use ONLY the JSON data provided. " +
-  'Reply ONLY minified JSON: {"overview":"","contract":"","tokenomics":"","holders":"","activity":"","risks":[""],"missing":[""],"coverage":{"overview":3,"contract":2,"tokenomics":3,"holders":0,"activity":2,"risks":2,"missing":3}}. ' +
-  "Each text field 1-3 sentences with concrete numbers, focused on the user question; if comparing, compare. " +
+  'Reply ONLY minified JSON: {"headline":"","overview":"","contract":"","tokenomics":"","holders":"","activity":"","risks":[""],"missing":[""],"coverage":{"overview":3,"contract":2,"tokenomics":3,"holders":0,"activity":2,"risks":2,"missing":3}}. ' +
+  "headline: ONE plain sentence, at most 25 words, stating the single most notable fact about this token right now. " +
+  "Each other text field 2-4 sentences. Be specific: quote the actual numbers (price, market cap in dollars when priceUsd/marketCapUsd are given, volumes, share of supply, minutes since the last trade, trades, holders), say what stands out and why it matters, and answer the user question first. If comparing, compare. " +
+  "Use the provided signals and facts; do not repeat the same number in every field. " +
   "risks: 2-4 neutral factual observations (e.g. early stage, creator allocation), not predictions. " +
   "Amounts in different quote assets (STRK, USDC) are different units: never add or compare them. " +
   "If holder data is absent, say it is not available. " +
@@ -14,6 +16,7 @@ const SYSTEM_PROMPT =
   "Never predict price, never advise buying/selling, never give a safety score.";
 
 interface Report {
+  headline: string;
   overview: string;
   contract: string;
   tokenomics: string;
@@ -34,7 +37,10 @@ function fallback(data: any): Report {
   const cmp = Array.isArray(data?.compare) && data.compare[0] ? data.compare[0] : null;
   const change = typeof p.change24hPct === "number" ? `${p.change24hPct >= 0 ? "+" : ""}${p.change24hPct.toFixed(1)}% over 24h` : "24h change unknown";
   const comparable = cmp && cmp.quoteAsset === p.quoteAsset;
+  const f = p.facts ?? {};
+  const quiet = typeof f.lastTradeMinutes === "number" ? `, the latest ${f.lastTradeMinutes < 60 ? Math.max(1, Math.round(f.lastTradeMinutes)) + " minutes" : Math.round(f.lastTradeMinutes / 60) + " hours"} ago` : "";
   return {
+    headline: `${p.name} is ${b.graduated ? "graduated" : `${b.progressPct ?? "?"}% through its curve`} with ${(p.trades ?? 0).toLocaleString()} trades and ${f.holderWallets ?? p.holders?.wallets ?? "an unknown number of"} holders.`,
     overview:
       `${p.name} ($${p.ticker}) is a bonding-curve token on Starknet, launched ${p.age} ago. It is ${b.graduated ? "graduated" : `${b.progressPct}% of the way to graduation`} with ${(p.trades ?? 0).toLocaleString()} trades, priced at ${num(p.price, 8)} ${asset} (${change}).` +
       (cmp
@@ -45,7 +51,8 @@ function fallback(data: any): Report {
     holders: p.holders
       ? `${(p.holders.wallets ?? 0).toLocaleString()} wallets hold the token. The ten biggest hold ${p.holders.top10SharePct}% of the supply and the creator holds ${p.holders.creatorSharePct}%. The bonding curve and the reserved share are not counted as holders.`
       : "Holder distribution is not available for this token.",
-    activity: `Across the last ${(tr.buys ?? 0) + (tr.sells ?? 0)} trades there were ${tr.buys ?? 0} buys totalling ${num(tr.buyVolume, 2)} ${asset} and ${tr.sells ?? 0} sells totalling ${num(tr.sellVolume, 2)} ${asset}.`,
+    activity: `Across the last ${(tr.buys ?? 0) + (tr.sells ?? 0)} trades there were ${tr.buys ?? 0} buys totalling ${num(tr.buyVolume, 2)} ${asset} and ${tr.sells ?? 0} sells totalling ${num(tr.sellVolume, 2)} ${asset}${quiet}.` +
+      (typeof f.uniqueTraders === "number" && f.uniqueTraders > 0 ? ` ${f.uniqueTraders} different wallet${f.uniqueTraders === 1 ? "" : "s"} traded, with an average trade of ${num(f.avgTrade, 2)} ${asset} and a largest of ${num(f.largestTrade, 2)} ${asset}.` : ""),
     risks: [
       `Early stage: the token is ${b.progressPct ?? "?"}% through its bonding curve, so single trades can move the price sharply.`,
       `Creator allocation is ${p.supply?.creatorPct ?? "?"}% of supply, visible on-chain.`,
@@ -62,6 +69,7 @@ function validate(parsed: any, data: any): Report {
   const str = (v: unknown, d: string) => (typeof v === "string" && v.trim() ? v.trim() : d);
   const arr = (v: unknown, d: string[]) => (Array.isArray(v) && v.length ? v.map((x) => String(x)) : d);
   return {
+    headline: str(parsed.headline, fb.headline),
     overview: str(parsed.overview, fb.overview),
     contract: str(parsed.contract, fb.contract),
     tokenomics: str(parsed.tokenomics, fb.tokenomics),
@@ -86,10 +94,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const text = await callClaude({
+  const text = await callModel({
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: `Question: ${question}\nData: ${JSON.stringify(data)}` }],
-    maxTokens: 1400,
+    maxTokens: 1800,
   });
   const report = text ? validate(extractJson(text), data) : fallback(data);
   return NextResponse.json(report, { headers: { "cache-control": "no-store" } });

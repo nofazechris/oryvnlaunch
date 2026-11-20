@@ -50,9 +50,13 @@ by itself. If the API stops, Render restarts the whole thing.
    | `NEXT_PUBLIC_RPC_URL` | `https://starknet-sepolia-rpc.publicnode.com` |
    | `TRUST_PROXY` | `1` |
 
-   Optional, server only: `ANTHROPIC_API_KEY` if you want the AI assistant to answer. Without it the AI parts
-   show an "AI is offline" notice. **Never** give a secret a name that starts with `NEXT_PUBLIC_`, because those
-   are sent to every visitor's browser.
+   Optional, server only, for the AI assistant: `GROQ_API_KEY` (free at console.groq.com). You can also set
+   `AI_MODEL` to a comma-separated list of models to try in order, and `AI_GLOBAL_PER_HOUR` to cap total AI
+   calls per hour. Without a key the AI parts show an "AI is not connected" notice and plain prepared answers.
+   Other providers work too (Gemini, OpenRouter, Anthropic): see `apps/web/.env.example`. Token pictures need no key: the studio draws
+   them with Stable Horde, a free community image network (set `AI_IMAGE_PROVIDER=off` to hide the picture maker,
+   or add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for a faster source). **Never** give a secret
+   a name that starts with `NEXT_PUBLIC_`, because those are sent to every visitor's browser.
 4. Deploy. Vercel gives you an address like `https://oryvnlaunch.vercel.app`.
 
 ## Step 3: tell the API where the website is

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { callClaude, extractJson, guardAi, readJson } from "@/lib/ai/claude";
+import { callModel, extractJson, guardAi, readJson } from "@/lib/ai/claude";
+import { PALETTE_NAMES, STYLES, artFor, validateArt, type ArtSuggestion } from "@/lib/avatar-art";
+import { cleanText } from "@/lib/safe";
 
 export const runtime = "nodejs";
 
@@ -13,11 +15,17 @@ interface AssistantResult {
   description: string;
   branding: string[];
   post: string;
+  /** A picture style and palette that suit the idea. The app draws it locally, so no image has to be made. */
+  art: ArtSuggestion;
+  /** What to draw, in a few concrete words, ready to give to a picture maker. */
+  imagePrompt: string;
 }
 
 const SYSTEM_PROMPT =
   "You help creators prepare a token for a Starknet bonding-curve launchpad. " +
-  'Reply with ONLY minified JSON: {"ideas":[{"name":"","ticker":"","line":""}],"description":"","branding":["","",""],"post":""}. ' +
+  'Reply with ONLY minified JSON: {"ideas":[{"name":"","ticker":"","line":""}],"description":"","branding":["","",""],"post":"","art":{"style":"","palette":"","glyph":"","why":""},"imagePrompt":""}. ' +
+  "imagePrompt: what a picture of this token should show, as one concrete visual description of at most 25 words (a single subject, its pose or mood, its colours). Describe only what to draw: no text, letters, brand names or real people. " +
+  `art: pick the picture style and palette that best suit the idea. style is one of ${STYLES.join("|")} (use mascot only when the idea has a clear creature or object; glyph is then ONE emoji, otherwise ""). palette is one of ${PALETTE_NAMES.join("|")}. why: at most 12 words. ` +
   "Exactly 3 ideas; ticker 3-6 uppercase letters; line max 10 words. " +
   "description: max 45 words, factual and community-focused. " +
   "branding: 3 short visual directions (mascot, palette, tone). " +
@@ -34,7 +42,7 @@ function clampWords(raw: unknown, max: number): string {
   return String(raw ?? "").trim().split(/\s+/).slice(0, max).join(" ");
 }
 
-function validate(parsed: unknown): AssistantResult | null {
+function validate(parsed: unknown, idea: string): AssistantResult | null {
   if (!parsed || typeof parsed !== "object") return null;
   const obj = parsed as Record<string, unknown>;
   if (!Array.isArray(obj.ideas)) return null;
@@ -57,6 +65,8 @@ function validate(parsed: unknown): AssistantResult | null {
     description: clampWords(obj.description, 50),
     branding,
     post: String(obj.post ?? "").trim().slice(0, 240),
+    art: validateArt(obj.art, idea),
+    imagePrompt: cleanText(String(obj.imagePrompt ?? ""), 200),
   };
 }
 
@@ -84,6 +94,8 @@ function fallback(idea: string): AssistantResult {
       "Tone: warm, plain-spoken and community-first.",
     ],
     post: `Introducing ${a} ${b}, a community token on Starknet for everyone into ${theme}. Launching on a bonding curve. Come say hi and help shape it.`,
+    art: artFor(idea),
+    imagePrompt: `a friendly mascot for: ${cleanText(idea, 120)}`,
   };
 }
 
@@ -101,7 +113,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Describe your token idea." }, { status: 400 });
   }
 
-  const text = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: idea }], maxTokens: 700 });
-  const result = (text ? validate(extractJson(text)) : null) ?? fallback(idea);
+  const text = await callModel({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: idea }], maxTokens: 700 });
+  const result = (text ? validate(extractJson(text), idea) : null) ?? fallback(idea);
   return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
 }

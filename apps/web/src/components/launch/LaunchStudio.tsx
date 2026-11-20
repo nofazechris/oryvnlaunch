@@ -7,6 +7,8 @@ import { sendCalls, useWalletStore } from "@/lib/wallet-store";
 import { useUiStore } from "@/lib/ui-store";
 import { paletteFor } from "@/lib/art";
 import { api, uploadImage, type ApiLaunch } from "@/lib/api";
+import type { ArtSuggestion } from "@/lib/avatar-art";
+import { PictureIdeas } from "./PictureIdeas";
 import { EXPLORER_URL, FACTORY_ADDRESS, NETWORK, NETWORK_LABEL, RPC_URL } from "@/lib/config";
 import { balanceOf } from "@/lib/rpc";
 import { fmtUsd, formatUnits, shortAddr, toNumber, toUsd } from "@/lib/format";
@@ -77,7 +79,7 @@ export function LaunchStudio() {
   const [f, setF] = useState<FormState>({ name: "", ticker: "", desc: "", web: "", x: "", tg: "", dc: "", feeAsset: "", preset: 1, creatorPct: 2 });
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [aiIdea, setAiIdea] = useState("");
-  const [ai, setAi] = useState<{ ideas: { name: string; ticker: string; line: string }[]; description: string; branding: string[]; post: string } | null>(null);
+  const [ai, setAi] = useState<{ ideas: { name: string; ticker: string; line: string }[]; description: string; branding: string[]; post: string; art: ArtSuggestion | null; imagePrompt: string } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiErr, setAiErr] = useState(false);
   const [usedIdea, setUsedIdea] = useState(-1);
@@ -120,7 +122,9 @@ export function LaunchStudio() {
         return { uri, preview: URL.createObjectURL(file) };
       });
     } catch (e) {
-      setImageErr(e instanceof Error ? e.message : "The upload failed.");
+      const message = e instanceof Error ? e.message : "The upload failed.";
+      setImageErr(message);
+      throw new Error(message);
     } finally {
       setImageBusy(false);
     }
@@ -137,7 +141,7 @@ export function LaunchStudio() {
       const res = await fetch("/api/ai/launch-assistant", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idea: q }) });
       if (!res.ok) throw new Error("ai");
       const j = await res.json();
-      setAi({ ideas: j.ideas ?? [], description: j.description ?? "", branding: j.branding ?? [], post: j.post ?? "" });
+      setAi({ ideas: j.ideas ?? [], description: j.description ?? "", branding: j.branding ?? [], post: j.post ?? "", art: j.art ?? null, imagePrompt: j.imagePrompt ?? "" });
       setUsedIdea(-1);
     } catch {
       setAiErr(true);
@@ -491,10 +495,11 @@ export function LaunchStudio() {
                       <span style={{ fontSize: 14 }}>{imageBusy ? "Uploading…" : image ? "Replace image" : "Upload token image"}</span>
                       <span style={{ fontSize: 12, color: "#696969" }}>PNG, JPEG, WebP or GIF · square works best · up to 512 KB. No image? A generated avatar is used.</span>
                     </span>
-                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={imageBusy} onChange={(e) => { void onImage(e.target.files?.[0]); e.target.value = ""; }} style={{ display: "none" }} />
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={imageBusy} onChange={(e) => { onImage(e.target.files?.[0]).catch(() => undefined); e.target.value = ""; }} style={{ display: "none" }} />
                   </label>
                   {imageErr && <span style={{ fontSize: 12, color: "#FF6868" }}>{imageErr}</span>}
                   {image && <button onClick={() => { URL.revokeObjectURL(image.preview); setImage(null); }} style={{ alignSelf: "flex-start", border: 0, background: "transparent", color: "#73D9E8", fontSize: 12, cursor: "pointer", padding: 0 }}>Remove image</button>}
+                  <PictureIdeas ticker={f.ticker} idea={aiIdea || [f.name, f.desc].filter(Boolean).join(": ")} imagePrompt={ai?.imagePrompt ?? ""} art={ai?.art ?? null} busy={imageBusy} hasImage={!!image} onPick={onImage} />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <span style={smallMuted}>Links <span style={{ color: "#5a5a5a" }}>· optional</span></span>

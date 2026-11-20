@@ -25,7 +25,7 @@ export function AiOfflineNotice({ style }: { style?: React.CSSProperties }) {
   if (configured !== false) return null;
   return (
     <div role="status" style={{ padding: "10px 14px", borderRadius: 14, background: "rgba(243,182,95,0.08)", border: "1px solid rgba(243,182,95,0.3)", color: "#F3B65F", fontSize: 12, lineHeight: 1.5, ...style }}>
-      AI is not connected on this server yet (no Anthropic key), so the answers here are basic prepared text, not from a model.
+      AI is not connected on this server yet (no AI key set), so the answers here are basic prepared text, not from a model.
     </div>
   );
 }
