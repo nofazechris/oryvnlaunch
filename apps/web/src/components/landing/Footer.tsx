@@ -17,6 +17,11 @@ const LEGAL = [
   { label: "Risk disclosure", href: "/risk" },
 ];
 
+const COMMUNITY = [
+  { label: "Telegram", href: "https://t.me/+_OTqwusKFXgyZjNk" },
+  { label: "X (Twitter)", href: "https://x.com/oryvnlaunch" },
+];
+
 const head: React.CSSProperties = { color: "#696969", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" };
 
 export function Footer({ brand }: FooterProps) {
@@ -40,6 +45,10 @@ export function Footer({ brand }: FooterProps) {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <span style={head}>Product</span>
             {PRODUCT.map((l) => (<a key={l.href} href={l.href}>{l.label}</a>))}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <span style={head}>Community</span>
+            {COMMUNITY.map((l) => (<a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer">{l.label}</a>))}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <span style={head}>Legal</span>
