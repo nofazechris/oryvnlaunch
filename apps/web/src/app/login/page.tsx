@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
-import { useWalletStore } from "@/lib/wallet-store";
+import { installedWallets, useWalletStore } from "@/lib/wallet-store";
+import { looksLikePhone, walletPath } from "@/lib/mobile";
+import { PhoneWalletGuide } from "@/components/wallet/PhoneWalletGuide";
 import { NETWORK, NETWORK_LABEL } from "@/lib/config";
 import { Contour } from "@/components/landing/Contour";
 import { WalletLogo } from "@/components/ui/WalletLogo";
@@ -23,6 +25,16 @@ export default function LoginPage() {
   const connect = useWalletStore((s) => s.connect);
   const connecting = useWalletStore((s) => s.connecting);
   const error = useWalletStore((s) => s.error);
+
+  // A phone with no wallet on the page gets the "take this site into your wallet app" guide instead of buttons that
+  // cannot work. A wallet app's own browser can inject its wallet a moment late, so look twice before deciding.
+  const [needsApp, setNeedsApp] = useState(false);
+  useEffect(() => {
+    const phone = looksLikePhone(navigator.userAgent, navigator.maxTouchPoints ?? 0);
+    const check = () => setNeedsApp(walletPath({ phone, installed: installedWallets() }) === "open-in-wallet-app");
+    const id = setTimeout(check, 1200);
+    return () => clearTimeout(id);
+  }, []);
 
   useEffect(() => hydrate(), [hydrate]);
   useEffect(() => {
@@ -55,6 +67,7 @@ export default function LoginPage() {
             <span style={{ fontSize: 14, color: "#A1A1A1", lineHeight: 1.5 }}>Connect your Starknet wallet to launch, trade and research.</span>
           </div>
 
+          {needsApp ? <PhoneWalletGuide /> : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <span style={{ fontSize: 13, color: "#A1A1A1", display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />{NETWORK_LABEL[NETWORK]}
@@ -78,6 +91,7 @@ export default function LoginPage() {
             ))}
             {error && <span style={{ fontSize: 13, color: "#FF6868", lineHeight: 1.5 }}>{error}</span>}
           </div>
+          )}
 
           <span style={{ fontSize: 12, color: "#696969", lineHeight: 1.5, textAlign: "center" }}>
             Non-custodial: we only ever see your address, never your keys. Your wallet is your account.

@@ -1,18 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { siteAddress } from "@/lib/mobile";
+import { siteAddress, walletAppLinks } from "@/lib/mobile";
 
 const mono = "var(--font-geist-mono),monospace";
 
 /**
- * What to do on a phone, where a wallet extension cannot be installed. A normal phone browser has no wallet; the
- * wallet apps each have their own built-in browser that does. So: open this site in there.
+ * Shown on a phone with no wallet on the page. A normal phone browser has none; the Starknet wallet apps each
+ * have a built-in browser that does. So this gets the wallet app (two taps), then carries this site into it
+ * (copy or share the link), rather than reporting that nothing was found.
  */
 export function PhoneWalletGuide() {
   const [copied, setCopied] = useState(false);
   const address = typeof window === "undefined" ? "" : siteAddress(window.location.origin);
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const apps = walletAppLinks(typeof navigator === "undefined" ? "" : navigator.userAgent);
 
   async function copy() {
     try {
@@ -24,39 +26,44 @@ export function PhoneWalletGuide() {
     }
   }
 
-  const step = (n: number, body: React.ReactNode) => (
-    <li style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-      <span style={{ width: 24, height: 24, flexShrink: 0, borderRadius: "50%", background: "#1b1b1b", color: "#d8d8d8", fontSize: 12, fontWeight: 600, display: "grid", placeItems: "center", marginTop: 1 }}>{n}</span>
-      <span style={{ fontSize: 14, lineHeight: 1.5, color: "#d8d8d8" }}>{body}</span>
-    </li>
+  const label = (n: number, title: string) => (
+    <span style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "#d8d8d8", fontWeight: 600 }}>
+      <span style={{ width: 22, height: 22, flexShrink: 0, borderRadius: "50%", background: "#1b1b1b", fontSize: 12, display: "grid", placeItems: "center" }}>{n}</span>
+      {title}
+    </span>
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: 16 }}>Open this site in your wallet app</span>
-        <span style={{ fontSize: 13, color: "#A1A1A1", lineHeight: 1.5 }}>A phone&apos;s normal browser can&apos;t talk to a Starknet wallet. Your wallet app has its own browser that can.</span>
-      </div>
-
-      <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
-        {step(1, <>Install a Starknet wallet app, such as <b>Ready</b> (formerly Argent) or <b>Braavos</b>, and switch it to <b>Sepolia testnet</b>.</>)}
-        {step(2, <>Open the app&apos;s built-in browser. Look for <b>Browser</b>, <b>Discover</b> or <b>dApps</b>.</>)}
-        {step(3, <>Paste this address there and open it:</>)}
-      </ol>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <span style={{ fontSize: 13, color: "#A1A1A1", lineHeight: 1.5 }}>
+        On a phone, your wallet app is what connects. Get one, then open this site from inside it.
+      </span>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {label(1, "Get a wallet app")}
+        <div style={{ display: "flex", gap: 8 }}>
+          {apps.map((a) => (
+            <a key={a.name} href={a.href} target="_blank" rel="noopener noreferrer" className="lp-tap" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", height: 44, borderRadius: 14, border: "1px solid rgba(255,255,255,0.14)", background: "#141414", color: "#fff", fontWeight: 600, fontSize: 14 }}>
+              Get {a.name}
+            </a>
+          ))}
+        </div>
+        <span style={{ fontSize: 12, color: "#8a8a8a", lineHeight: 1.5 }}>Then switch it to Sepolia testnet in its settings.</span>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {label(2, "Take this site into the app")}
         <div style={{ padding: "12px 14px", borderRadius: 14, background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.08)", fontFamily: mono, fontSize: 14, wordBreak: "break-all", userSelect: "all" }}>{address}</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" onClick={() => void copy()} className="lp-tap" style={{ flex: 1, height: 44, borderRadius: 14, border: 0, background: "#fff", color: "#050505", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>{copied ? "Copied" : "Copy address"}</button>
+          <button type="button" onClick={() => void copy()} className="lp-tap" style={{ flex: 1, height: 44, borderRadius: 14, border: 0, background: "#fff", color: "#050505", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>{copied ? "Copied" : "Copy link"}</button>
           {canShare && (
             <button type="button" onClick={() => void navigator.share({ title: "oryvnlaunch", url: address }).catch(() => undefined)} className="lp-tap" style={{ flex: 1, height: 44, borderRadius: 14, border: "1px solid rgba(255,255,255,0.14)", background: "transparent", color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Share</button>
           )}
         </div>
+        <span style={{ fontSize: 12, color: "#8a8a8a", lineHeight: 1.5 }}>
+          Open the wallet, go to its <b>Browser</b>, <b>Discover</b> or <b>dApps</b> tab, paste the link and go. Tap connect there and your wallet answers straight away.
+        </span>
       </div>
-
-      <span style={{ fontSize: 12, color: "#8a8a8a", lineHeight: 1.5 }}>
-        Wallet apps differ, and not every one has a browser. If yours doesn&apos;t, use a computer for now.
-      </span>
     </div>
   );
 }

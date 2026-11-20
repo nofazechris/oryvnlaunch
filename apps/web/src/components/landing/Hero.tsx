@@ -39,18 +39,14 @@ export function Hero({ brand, w, contourDensity, menuOpen, onToggleMenu, onGetSt
   const zs = [1, 2, 3];
   const degs = [160, 170, 150];
 
-  const stageStyle: CSSProperties = mobile
-    ? { display: "flex", gap: 16, overflowX: "auto", scrollSnapType: "x mandatory", padding: "10px 18px 30px", margin: "0 -18px" }
-    : { position: "absolute", inset: 0 };
+  const stageStyle: CSSProperties = { position: "absolute", inset: 0 };
   // Tall enough that the side cards (offset down by up to 130px) show their artwork in full.
-  const stageH = mobile ? H + 40 : H + 150;
+  const stageH = H + 150;
 
   const cards = PRODUCT_CARDS.map((c, i) => {
     const off = [-0.9, 0, 0.9][i]!;
-    const rot = mobile ? 0 : rots[i]!;
-    const posStyle: CSSProperties = mobile
-      ? { position: "relative", flex: `0 0 ${W}px`, height: H, scrollSnapAlign: "center", zIndex: i }
-      : { position: "absolute", width: W, height: H, left: `calc(50% - ${W / 2}px + ${Math.round(off * W)}px)`, top: tops[i], zIndex: zs[i] };
+    const rot = rots[i]!;
+    const posStyle: CSSProperties = { position: "absolute", width: W, height: H, left: `calc(50% - ${W / 2}px + ${Math.round(off * W)}px)`, top: tops[i], zIndex: zs[i] };
     return {
       c,
       rot,
@@ -102,6 +98,29 @@ export function Hero({ brand, w, contourDensity, menuOpen, onToggleMenu, onGetSt
           </div>
         </div>
 
+        {mobile && (
+          // On a phone all three cards sit in one column, so nothing has to be swiped. They rise in one after another
+          // and then drift very slightly, out of step with each other.
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 36, paddingBottom: 36 }}>
+            {PRODUCT_CARDS.map((c, i) => (
+              <div key={c.key} className="oc-rise" style={{ "--oc-delay": `${i * 140}ms` } as CSSProperties}>
+                <div
+                  className="oc-bob"
+                  style={{ "--oc-dur": `${3600 + i * 700}ms`, position: "relative", display: "flex", alignItems: "center", gap: 14, padding: "18px 20px", borderRadius: 24, overflow: "hidden", background: `linear-gradient(${degs[i]}deg, ${c.g[1]} 0%, ${c.g[0]} 55%, ${c.mid} 100%)`, color: c.ink, boxShadow: "0 18px 44px rgba(0,0,0,0.5),inset 0 0 0 1px rgba(255,255,255,0.35)" } as CSSProperties}
+                >
+                  <span style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 14, background: "rgba(255,255,255,0.55)", display: "grid", placeItems: "center", fontSize: 15, fontWeight: 700, letterSpacing: "-0.02em" }}>{c.kicker.slice(0, 2)}</span>
+                  <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, textAlign: "left" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", opacity: 0.7 }}>{c.kicker.slice(5)}</span>
+                    <span style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1 }}>{c.title}</span>
+                    <span style={{ fontSize: 14, fontWeight: 500, opacity: 0.78, lineHeight: 1.35 }}>{c.sub}</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!mobile && (
         <div style={{ position: "relative", marginTop: "clamp(36px,5vw,64px)", height: stageH }}>
           {showSideCopy && (
             <p style={{ position: "absolute", right: 0, top: 0, width: 270, margin: 0, fontSize: 14, lineHeight: 1.6, color: "#A1A1A1", textWrap: "pretty" }}>
@@ -134,6 +153,7 @@ export function Hero({ brand, w, contourDensity, menuOpen, onToggleMenu, onGetSt
             ))}
           </div>
         </div>
+        )}
       </div>
     </section>
   );

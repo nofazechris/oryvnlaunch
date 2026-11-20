@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FAUCET_URL, looksLikePhone, siteAddress, walletPath } from "./mobile";
+import { FAUCET_URL, looksLikePhone, siteAddress, walletAppLinks, walletPath } from "./mobile";
 
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36";
@@ -31,6 +31,17 @@ describe("walletPath", () => {
   });
   it("tells a computer with no wallet to install the extension", () => {
     expect(walletPath({ phone: false, installed: [] })).toBe("install-extension");
+  });
+});
+
+describe("walletAppLinks", () => {
+  it("links the App Store on an iPhone", () => {
+    const links = walletAppLinks(IPHONE);
+    expect(links.map((l) => l.name)).toEqual(["Ready", "Braavos"]);
+    expect(links.every((l) => l.href.startsWith("https://apps.apple.com/"))).toBe(true);
+  });
+  it("links a Play Store search on Android", () => {
+    expect(walletAppLinks(ANDROID).every((l) => l.href.startsWith("https://play.google.com/store/search"))).toBe(true);
   });
 });
 
