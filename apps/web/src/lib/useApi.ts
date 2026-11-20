@@ -82,8 +82,8 @@ export interface LaunchesParams {
 }
 
 /** Launches, newest first by default, as ready-to-draw tokens. */
-export function useLaunches(params: LaunchesParams = {}, intervalMs = 5_000): Polled<{ tokens: Token[]; total: number }> {
-  const key = JSON.stringify(params);
+export function useLaunches(params: LaunchesParams = {}, intervalMs = 5_000, enabled = true): Polled<{ tokens: Token[]; total: number }> {
+  const key = enabled ? JSON.stringify(params) : null;
   return usePolled(
     async (signal) => {
       const result = await api.launches({ limit: 100, ...params }, signal);

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useAuthStore } from "@/lib/auth-store";
 import { useWalletStore } from "@/lib/wallet-store";
 import { useUiStore } from "@/lib/ui-store";
-import { useLaunches, useStats, useStrkUsd, type Token } from "@/lib/useApi";
+import { useActivity, useLaunches, useStats, useStrkUsd, type Token } from "@/lib/useApi";
+import { onboardingSteps } from "@/lib/onboarding";
 import { usdOr } from "@/lib/format";
 import { TokenAvatar } from "@/components/ui/TokenAvatar";
 import { Icon, IconTile, type IconName } from "@/components/ui/Icons";
@@ -44,20 +45,26 @@ export function Overview() {
   const session = useAuthStore((s) => s.session);
   const wallet = useWalletStore((s) => s.wallet);
   const setPanel = useUiStore((s) => s.setPanel);
+  const restoring = useWalletStore((s) => s.restoring);
   const connected = !!wallet;
   const stats = useStats();
   const launches = useLaunches({ sort: "newest" }, 10_000);
   const strkUsd = useStrkUsd();
   const everyone = launches.data?.tokens ?? [];
   const latest = everyone.slice(0, 6);
-  const mine = wallet ? everyone.filter((t) => t.creator.toLowerCase() === wallet.toLowerCase()) : [];
+  // Asked of the API by wallet, not picked out of the newest list, so an older launch is never missed.
+  const mineQ = useLaunches({ creator: wallet ?? undefined }, 10_000, !!wallet);
+  const mine = wallet ? mineQ.data?.tokens ?? [] : [];
+  const myActivity = useActivity({ wallet: wallet ?? undefined, limit: 50 }, !!wallet, 10_000);
   const who = session?.method === "google" ? session.email : "there";
 
-  const steps: { label: string; hint: string; done: boolean; href?: string; action?: () => void; icon: IconName }[] = [
-    { label: "Account created", hint: "You're signed in", done: true, icon: "check" },
-    { label: connected ? "Wallet connected" : "Connect your wallet", hint: connected ? "Ready to launch and trade" : "Needed to launch and trade", done: connected, action: connected ? undefined : () => setPanel("wallet"), icon: "wallet" },
-    { label: "Launch your first token", hint: "Takes a few minutes with AI", done: false, href: "/launch", icon: "rocket" },
-  ];
+  const ICONS: Record<string, IconName> = { account: "check", wallet: "wallet", launch: "rocket", trade: "curve" };
+  const steps = onboardingSteps({
+    connected,
+    restoring,
+    launched: connected && mineQ.data ? mine.map((t) => ({ name: t.name, href: t.href })) : null,
+    traded: connected && myActivity.data ? myActivity.data.some((e) => e.kind === "buy" || e.kind === "sell") : null,
+  }).map((s) => ({ ...s, icon: ICONS[s.key] as IconName, action: s.connect ? () => setPanel("wallet") : undefined }));
   const doneCount = steps.filter((s) => s.done).length;
 
   return (

@@ -12,6 +12,9 @@ import type { WalletCall } from "./launch-tx";
 import { accountDeployed } from "./rpc";
 
 const KEY = "oryvn.wallet";
+/** How long, and how often, to look for a remembered wallet that has not put itself on the page yet. */
+const RESTORE_WINDOW_MS = 8_000;
+const RESTORE_STEP_MS = 250;
 
 interface InjectedWallet {
   id?: string;
@@ -198,6 +201,8 @@ interface WalletState {
   /** A sentence a person can read when connecting failed. */
   error: string | null;
   hydrated: boolean;
+  /** True while a remembered wallet is being picked up again, so screens can say "Reconnecting" instead of "Connect". */
+  restoring: boolean;
   hydrate: () => void;
   connect: (name: string) => Promise<void>;
   disconnect: () => void;
@@ -209,25 +214,53 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   connecting: null,
   error: null,
   hydrated: false,
+  restoring: false,
 
   // Pick up an earlier approval without opening any prompt.
+  //
+  // Extensions put themselves on the page a moment AFTER it loads, so one quick look finds nothing and the
+  // person would have to connect again on every visit. So keep looking for a few seconds, and look again when
+  // they come back to the tab. A locked or never-approved wallet is not an error: we stay disconnected and keep
+  // the remembered choice, so unlocking the wallet and returning works. Disconnecting forgets it.
   hydrate: () => {
     if (get().hydrated || typeof window === "undefined") return;
     set({ hydrated: true });
-    let name: string | null = null;
-    try {
-      name = window.localStorage.getItem(KEY);
-    } catch {
-      name = null;
-    }
-    if (!name || !PROVIDERS[name]) return;
-    const wallet = injected(name);
-    if (!wallet) return;
-    void requestAccounts(wallet, true)
-      .then((address) => {
-        if (address) set({ wallet: normalizeAddress(address), provider: name });
-      })
-      .catch(() => undefined);
+    const remembered = () => {
+      try {
+        const name = window.localStorage.getItem(KEY);
+        return name && PROVIDERS[name] ? name : null;
+      } catch {
+        return null;
+      }
+    };
+    if (!remembered()) return;
+    let busy = false;
+    const attempt = async (patient: boolean) => {
+      const name = remembered();
+      if (!name || busy || get().wallet || get().connecting) return;
+      busy = true;
+      set({ restoring: true });
+      try {
+        const deadline = Date.now() + (patient ? RESTORE_WINDOW_MS : 0);
+        let wallet = injected(name);
+        while (!wallet && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, RESTORE_STEP_MS));
+          wallet = injected(name);
+        }
+        if (!wallet) return;
+        const address = await requestAccounts(wallet, true);
+        if (address && !get().wallet && remembered() === name) set({ wallet: normalizeAddress(address), provider: name });
+      } catch {
+        /* locked, or not approved for this site: stay disconnected */
+      } finally {
+        busy = false;
+        set({ restoring: false });
+      }
+    };
+    void attempt(true);
+    const again = () => void attempt(false);
+    window.addEventListener?.("focus", again);
+    if (typeof document !== "undefined") document.addEventListener?.("visibilitychange", () => { if (document.visibilityState === "visible") again(); });
   },
 
   connect: async (name) => {
@@ -267,6 +300,6 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     } catch {
       /* ignore */
     }
-    set({ wallet: null, provider: null, connecting: null, error: null });
+    set({ wallet: null, provider: null, connecting: null, error: null, restoring: false });
   },
 }));

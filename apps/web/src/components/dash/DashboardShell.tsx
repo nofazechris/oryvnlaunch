@@ -38,6 +38,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const wallet = useWalletStore((s) => s.wallet);
   const disconnect = useWalletStore((s) => s.disconnect);
   const hydrateWallet = useWalletStore((s) => s.hydrate);
+  const restoring = useWalletStore((s) => s.restoring);
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -167,6 +168,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#55D69A" }} />{shortAddr(wallet)}
                 </>
               )}
+            </span>
+          ) : restoring ? (
+            <span role="status" style={{ height: 40, minWidth: 40, padding: w < 520 ? 0 : "0 16px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", fontSize: 13, color: "#A1A1A1", whiteSpace: "nowrap", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <span style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.2)", borderTopColor: "#fff", animation: "oc-spin 0.9s linear infinite" }} />
+              {w >= 520 && "Reconnecting…"}
             </span>
           ) : (
             <button onClick={() => setWalletModal(true)} aria-label="Connect wallet" className="lp-bright" style={{ height: 40, minWidth: 40, padding: w < 520 ? 0 : "0 16px", borderRadius: 999, border: 0, cursor: "pointer", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0, color: "#1a0d05", background: "linear-gradient(90deg,#FF9865,#FFE3CF)", display: "grid", placeItems: "center" }}>

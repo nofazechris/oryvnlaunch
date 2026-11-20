@@ -41,6 +41,8 @@ export function TerminalView({ address }: { address: string | null }) {
   const hydrate = useWalletStore((s) => s.hydrate);
 
   const [sel, setSel] = useState<string | null>(address);
+  // The token looked at last time, so the terminal opens where the person left off. A link to a token wins.
+  const [remembered, setRemembered] = useState<string | null>(null);
   const [tf, setTf] = useState<CandleInterval>("15m");
   const pickedTf = useRef(false);
   const [type, setType] = useState<"candle" | "line">("candle");
@@ -62,6 +64,14 @@ export function TerminalView({ address }: { address: string | null }) {
   const [vh, setVh] = useState(800);
 
   useEffect(() => hydrate(), [hydrate]);
+
+  useEffect(() => {
+    try {
+      setRemembered(localStorage.getItem("oryvn.terminal.token"));
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -116,7 +126,7 @@ export function TerminalView({ address }: { address: string | null }) {
         .sort(SORTERS[listTab]),
     [all, query, listTab],
   );
-  const chosen = sel ?? all[0]?.addr ?? null;
+  const chosen = sel ?? (remembered && all.some((x) => x.addr === remembered) ? remembered : all[0]?.addr) ?? null;
   const fresh = useToken(chosen);
   const t: Token | undefined = fresh.data ?? all.find((x) => x.addr === chosen);
 
@@ -150,6 +160,11 @@ export function TerminalView({ address }: { address: string | null }) {
 
   function pick(addr: string) {
     setSel(addr);
+    try {
+      localStorage.setItem("oryvn.terminal.token", addr);
+    } catch {
+      /* ignore */
+    }
     setHover(null);
     setAiMsgs([]);
   }
