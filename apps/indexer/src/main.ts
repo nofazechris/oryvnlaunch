@@ -24,6 +24,7 @@ const indexer = new Indexer(
     startBlock: config.startBlock,
     overlapBlocks: config.overlapBlocks,
     maxBlockRange: config.maxBlockRange,
+    ignoredTokens: config.ignoredTokens,
   },
   log,
 );

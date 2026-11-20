@@ -117,6 +117,31 @@ describe("reading the factory from the deployment record", () => {
     expect(loadConfig({ ...base, NETWORK: "sepolia", START_BLOCK: "10" }, { cwd: runFrom }).startBlock).toBe(10);
   });
 
+  it("ignores nothing unless told to", () => {
+    expect(loadConfig(valid).ignoredTokens).toEqual([]);
+    const { runFrom } = repoWith("sepolia", record);
+    expect(loadConfig({ ...base, NETWORK: "sepolia" }, { cwd: runFrom }).ignoredTokens).toEqual([]);
+  });
+
+  it("reads the tokens to leave out from IGNORE_TOKENS, normalised and without repeats", () => {
+    const config = loadConfig({ ...valid, IGNORE_TOKENS: " 0xAB , 0xab,0xCD ,, " });
+    expect(config.ignoredTokens).toEqual(["0x" + "0".repeat(62) + "ab", "0x" + "0".repeat(62) + "cd"]);
+  });
+
+  it("merges the tokens listed in the deployment record with IGNORE_TOKENS", () => {
+    const { runFrom } = repoWith("sepolia", { ...record, ignoredTokens: ["0x11", "0xAB"] });
+    const config = loadConfig({ ...base, NETWORK: "sepolia", IGNORE_TOKENS: "0xab,0x22" }, { cwd: runFrom });
+    expect(config.ignoredTokens.sort()).toEqual(["0x" + "0".repeat(62) + "11", "0x" + "0".repeat(62) + "22", "0x" + "0".repeat(62) + "ab"].sort());
+  });
+
+  it("refuses a list entry that is not an address, instead of quietly skipping it", () => {
+    expect(() => loadConfig({ ...valid, IGNORE_TOKENS: "0x1,not-an-address" })).toThrow(/IGNORE_TOKENS[\s\S]*not an address|not a 0x-prefixed token address/);
+    const { runFrom } = repoWith("sepolia", { ...record, ignoredTokens: ["nope"] });
+    expect(() => loadConfig({ ...base, NETWORK: "sepolia" }, { cwd: runFrom })).toThrow(/ignoredTokens[\s\S]*not a 0x-prefixed token address/);
+    const { runFrom: r2 } = repoWith("sepolia", { ...record, ignoredTokens: "0x1" });
+    expect(() => loadConfig({ ...base, NETWORK: "sepolia" }, { cwd: r2 })).toThrow(/ignoredTokens must be a list/);
+  });
+
   it("rejects a deployment file with no usable address or with broken JSON", () => {
     const noAddress = repoWith("sepolia", { factory: { deployBlock: 1 } });
     expect(() => loadConfig({ ...base, NETWORK: "sepolia" }, { cwd: noAddress.runFrom })).toThrow(/no valid factory\.address/);

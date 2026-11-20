@@ -38,6 +38,8 @@ export interface IndexerOptions {
   maxBlockRange: number;
   /** How many curves to read at once. Default 4. */
   concurrency?: number;
+  /** Tokens (normalised addresses) that are never indexed: no launch, no trades, no holders. */
+  ignoredTokens?: string[];
 }
 
 export type Logger = (level: "info" | "error", message: string, fields?: Record<string, unknown>) => void;
@@ -123,10 +125,13 @@ export class Indexer {
     if (to < from) return { status: "idle", head };
 
     // The factory first: it announces new curves.
+    // A token on the ignore list is dropped here, before anything else learns its curve exists. Its curve and
+    // token events are then never asked for, so none of it ever reaches the database.
+    const ignored = new Set(this.options.ignoredTokens ?? []);
     const factoryEvents: FactoryEvent[] = decodeAll(
       await this.source.getEvents({ address: factory, fromBlock: from, toBlock: to }),
       decodeFactoryEvent,
-    );
+    ).filter((event) => !(event.type === "LaunchCreated" && ignored.has(event.token)));
 
     // Every curve we know of, plus any announced in this very range.
     const known = await this.db.select({ curve: launches.curve, token: launches.token }).from(launches).where(lte(launches.createdBlock, to));

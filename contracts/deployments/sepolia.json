@@ -36,5 +36,8 @@
       "decimals": 6,
       "deployFeeUnits": "2000000"
     }
-  }
+  },
+  "ignoredTokens": [
+    "0x00fa1a331b6bf29d288d36454573ef356d46d16e3404a54291b21e809333bceb"
+  ]
 }

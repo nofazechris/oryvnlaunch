@@ -32,6 +32,11 @@ const Env = z.object({
   MAX_BLOCK_RANGE: z.coerce.number().int().min(1).max(10_000).default(1_000),
   /** Optional JSON object of extra RPC headers, for providers that want an API key header. */
   STARKNET_RPC_HEADERS: z.string().optional(),
+  /**
+   * Tokens to leave out, comma separated. A token on the chain cannot be deleted, but the app can choose not to
+   * show it: a listed token is never indexed, so it never appears. The deployment record can list some too.
+   */
+  IGNORE_TOKENS: z.string().default(""),
 });
 
 export interface Config {
@@ -43,6 +48,8 @@ export interface Config {
   pollIntervalMs: number;
   overlapBlocks: number;
   maxBlockRange: number;
+  /** Tokens (normalised addresses) that are never indexed. */
+  ignoredTokens: string[];
 }
 
 export interface LoadOptions {
@@ -66,7 +73,18 @@ function findDeploymentFile(network: string, cwd: string): { path: string | unde
 interface Deployment {
   factory: string;
   deployBlock: number | undefined;
+  ignoredTokens: string[];
   path: string;
+}
+
+const ADDRESS = /^0x[0-9a-fA-F]{1,64}$/;
+
+/** A list of token addresses, each checked and normalised. Anything that is not an address is an error, never skipped. */
+function parseTokens(values: unknown[], where: string): string[] {
+  return values.map((v) => {
+    if (typeof v !== "string" || !ADDRESS.test(v.trim())) throw new Error(`Invalid indexer configuration:\n  ${where}: "${String(v).slice(0, 80)}" is not a 0x-prefixed token address`);
+    return normalizeAddress(v.trim());
+  });
 }
 
 function readDeployment(network: string, cwd: string): Deployment {
@@ -77,7 +95,7 @@ function readDeployment(network: string, cwd: string): Deployment {
         `Deploy first with contracts/scripts/deploy.sh, or set FACTORY_ADDRESS and START_BLOCK yourself.`,
     );
   }
-  let record: { factory?: { address?: unknown; deployBlock?: unknown } };
+  let record: { factory?: { address?: unknown; deployBlock?: unknown }; ignoredTokens?: unknown };
   try {
     record = JSON.parse(readFileSync(path, "utf8"));
   } catch {
@@ -89,7 +107,9 @@ function readDeployment(network: string, cwd: string): Deployment {
   }
   const block = record.factory?.deployBlock;
   const deployBlock = typeof block === "number" && Number.isInteger(block) && block >= 0 ? block : undefined;
-  return { factory: normalizeAddress(address), deployBlock, path };
+  const listed = record.ignoredTokens;
+  if (listed !== undefined && !Array.isArray(listed)) throw new Error(`Invalid indexer configuration:\n  ${path}: ignoredTokens must be a list of token addresses`);
+  return { factory: normalizeAddress(address), deployBlock, ignoredTokens: parseTokens(listed ?? [], `${path} ignoredTokens`), path };
 }
 
 export function loadConfig(env: Record<string, string | undefined>, options: LoadOptions = {}): Config {
@@ -102,6 +122,7 @@ export function loadConfig(env: Record<string, string | undefined>, options: Loa
 
   let factory = e.FACTORY_ADDRESS;
   let startBlock = e.START_BLOCK;
+  const ignored = new Set<string>(parseTokens(e.IGNORE_TOKENS.split(",").map((s) => s.trim()).filter(Boolean), "IGNORE_TOKENS"));
   if (!factory) {
     if (!e.NETWORK) {
       throw new Error(
@@ -111,6 +132,7 @@ export function loadConfig(env: Record<string, string | undefined>, options: Loa
     }
     const deployment = readDeployment(e.NETWORK, options.cwd ?? process.cwd());
     factory = deployment.factory;
+    for (const token of deployment.ignoredTokens) ignored.add(token);
     if (startBlock === undefined) {
       if (deployment.deployBlock === undefined) {
         throw new Error(
@@ -141,5 +163,6 @@ export function loadConfig(env: Record<string, string | undefined>, options: Loa
     pollIntervalMs: e.POLL_INTERVAL_MS,
     overlapBlocks: e.REORG_OVERLAP_BLOCKS,
     maxBlockRange: e.MAX_BLOCK_RANGE,
+    ignoredTokens: [...ignored],
   };
 }

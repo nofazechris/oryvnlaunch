@@ -227,6 +227,33 @@ describe("reading the chain in different sized pieces", () => {
   });
 });
 
+describe("a token on the ignore list", () => {
+  it("never reaches the database, and its curve and token events are never even asked for", async () => {
+    const token = fixtureTransfers().token;
+    const { node } = await indexEverything(new FakeNode(), { ignoredTokens: [token] });
+    expect(await db.select().from(launches)).toHaveLength(0);
+    expect(await db.select().from(trades)).toHaveLength(0);
+    expect(await db.select().from(transfers)).toHaveLength(0);
+    // the factory is read, the curve and the token are not
+    expect(node.requests.some((r) => r.startsWith(`getEvents ${CURVE.slice(0, 8)}`))).toBe(false);
+    expect(node.requests.some((r) => r.startsWith(`getEvents ${token.slice(0, 8)}`))).toBe(false);
+    // and the indexer still advances, so it does not read the same blocks forever
+    expect((await getCursor(db))?.block).toBe(HEAD);
+  });
+
+  it("leaves other tokens alone", async () => {
+    await indexEverything(new FakeNode(), { ignoredTokens: ["0x" + "0".repeat(62) + "ab"] });
+    expect(await db.select().from(launches)).toHaveLength(1);
+    expect((await db.select().from(trades)).length).toBeGreaterThan(0);
+  });
+
+  it("matches the address however it is written, once normalised", async () => {
+    const token = fixtureTransfers().token;
+    await indexEverything(new FakeNode(), { ignoredTokens: [token] });
+    expect(await db.select().from(launches)).toHaveLength(0);
+  });
+});
+
 describe("when the chain changes under the indexer", () => {
   it("rebuilds after a reorg at the same height, dropping what the old blocks said", async () => {
     const { node, indexer } = await indexEverything();
