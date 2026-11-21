@@ -35,13 +35,22 @@ describe("walletPath", () => {
 });
 
 describe("walletAppLinks", () => {
-  it("links the App Store on an iPhone", () => {
+  it("links the App Store pages on an iPhone", () => {
     const links = walletAppLinks(IPHONE);
-    expect(links.map((l) => l.name)).toEqual(["Ready", "Braavos"]);
+    expect(links.map((l) => l.name)).toEqual(["Ready X", "Braavos"]);
     expect(links.every((l) => l.href.startsWith("https://apps.apple.com/"))).toBe(true);
   });
-  it("links a Play Store search on Android", () => {
-    expect(walletAppLinks(ANDROID).every((l) => l.href.startsWith("https://play.google.com/store/search"))).toBe(true);
+  it("links the Play Store pages on Android", () => {
+    const links = walletAppLinks(ANDROID);
+    expect(links[0]!.href).toBe("https://play.google.com/store/apps/details?id=com.ready.wallet");
+    expect(links[1]!.href).toBe("https://play.google.com/store/apps/details?id=app.braavos.wallet");
+  });
+  it("never points at Ready: Community Finance, a different app from the same company", () => {
+    for (const ua of [IPHONE, ANDROID]) {
+      const all = walletAppLinks(ua).map((l) => l.href).join(" ");
+      expect(all).not.toContain("id1358741926");
+      expect(all).not.toContain("im.argent.contractwalletclient");
+    }
   });
 });
 

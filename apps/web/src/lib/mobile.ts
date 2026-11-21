@@ -26,12 +26,16 @@ export function walletPath(input: { phone: boolean; installed: string[] }): Wall
   return input.phone ? "open-in-wallet-app" : "install-extension";
 }
 
-/** Where to get the wallet apps. On an iPhone or iPad that is the App Store page; elsewhere a Play Store search. */
+/**
+ * Where to get the wallet apps: the App Store page on an iPhone or iPad, the Play Store page elsewhere.
+ * Ready X is the Starknet wallet (formerly Argent). Do not confuse it with "Ready: Community Finance"
+ * (id1358741926, im.argent.contractwalletclient), which is a different app from the same company.
+ */
 export function walletAppLinks(userAgent: string): { name: string; href: string }[] {
   const apple = /iPhone|iPad|iPod|Macintosh/i.test(userAgent);
   return [
-    { name: "Ready", href: apple ? "https://apps.apple.com/app/id1358741926" : "https://play.google.com/store/search?q=ready%20argent%20starknet%20wallet&c=apps" },
-    { name: "Braavos", href: apple ? "https://apps.apple.com/app/id1636013523" : "https://play.google.com/store/search?q=braavos%20wallet&c=apps" },
+    { name: "Ready X", href: apple ? "https://apps.apple.com/us/app/ready-x-starknet-wallet/id6744935604" : "https://play.google.com/store/apps/details?id=com.ready.wallet" },
+    { name: "Braavos", href: apple ? "https://apps.apple.com/app/id1636013523" : "https://play.google.com/store/apps/details?id=app.braavos.wallet" },
   ];
 }
 

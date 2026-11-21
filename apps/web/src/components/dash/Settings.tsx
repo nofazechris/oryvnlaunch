@@ -89,7 +89,7 @@ export function Settings() {
       </Section>
 
       <Section icon="wallet" from="#FF9865" to="#FF5E3A" title="Wallet">
-        <Row label="Status" hint="Connect a Ready (formerly Argent X) or Braavos wallet. Every transaction still needs your approval in the wallet.">
+        <Row label="Status" hint="Connect an Argent X (Ready X on phones) or Braavos wallet. Every transaction still needs your approval in the wallet.">
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: connected ? "#55D69A" : "#696969" }} />
             {connected ? "Connected" : "Not connected"}

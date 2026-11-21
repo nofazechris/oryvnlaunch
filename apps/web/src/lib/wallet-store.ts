@@ -1,6 +1,6 @@
 "use client";
 
-// The user's Starknet wallet, connected through the extension they already have (Ready, formerly Argent X, or Braavos).
+// The user's Starknet wallet, connected through the extension they already have (Argent X or Braavos).
 //
 // Nothing here ever sees a key or a seed phrase: the extension holds them. We only ask it for the
 // account address and, later, ask it to sign and send transactions the user approves one by one.

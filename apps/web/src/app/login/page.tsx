@@ -30,8 +30,10 @@ export default function LoginPage() {
   // A phone with no wallet on the page gets the "take this site into your wallet app" guide instead of buttons that
   // cannot work. A wallet app's own browser can inject its wallet a moment late, so look twice before deciding.
   const [needsApp, setNeedsApp] = useState(false);
+  const [phone, setPhone] = useState(false);
   useEffect(() => {
     const phone = looksLikePhone(navigator.userAgent, navigator.maxTouchPoints ?? 0);
+    setPhone(phone);
     const check = () => setNeedsApp(walletPath({ phone, installed: installedWallets() }) === "open-in-wallet-app");
     const id = setTimeout(check, 1200);
     return () => clearTimeout(id);
@@ -77,8 +79,8 @@ export default function LoginPage() {
               <button key={w.name} onClick={() => void wallet(w.name)} disabled={!!connecting} className="lp-walletopt" style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 16, border: "1px solid rgba(255,255,255,0.09)", background: "#141414", color: "#fff", cursor: connecting ? "default" : "pointer", textAlign: "left", opacity: connecting && connecting !== w.name ? 0.5 : 1 }}>
                 <WalletLogo name={w.name} color={w.color} initial={w.initial} />
                 <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ fontWeight: 600, fontSize: 15 }}>{walletLabel(w.name)}</span>
-                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>{connecting === w.name ? "Approve the connection in your wallet…" : walletNote(w.name, false)}</span>
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>{walletLabel(w.name, phone)}</span>
+                  <span style={{ fontSize: 12, color: "#A1A1A1" }}>{connecting === w.name ? "Approve the connection in your wallet…" : walletNote(w.name, phone)}</span>
                 </span>
                 {connecting === w.name && (
                   <svg width="22" height="22" viewBox="0 0 44 44" fill="none" aria-hidden="true">

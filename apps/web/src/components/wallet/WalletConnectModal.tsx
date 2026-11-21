@@ -111,13 +111,13 @@ export function WalletConnectModal({ onClose }: { onClose: () => void }) {
               <button key={wl.name} onClick={() => void connect(wl.name)} className="lp-walletopt" style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 18, border: "1px solid rgba(255,255,255,0.09)", background: "#141414", color: "#fff", cursor: "pointer", textAlign: "left" }}>
                 <WalletLogo name={wl.name} color={wl.color} initial={wl.initial} />
                 <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ fontWeight: 600, fontSize: 15 }}>{walletLabel(wl.name)}</span>
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>{walletLabel(wl.name, phone)}</span>
                   <span style={{ fontSize: 12, color: "#A1A1A1" }}>{walletNote(wl.name, phone)}</span>
                 </span>
               </button>
             ))}
             {error && <span style={{ fontSize: 13, color: "#FF6868", lineHeight: 1.5 }}>{error}</span>}
-            {installedWallets().length === 0 && <span style={{ fontSize: 13, color: "#F3B65F", lineHeight: 1.5 }}>No wallet was found in this browser. Install Ready Wallet or Braavos, then reload this page.</span>}
+            {installedWallets().length === 0 && <span style={{ fontSize: 13, color: "#F3B65F", lineHeight: 1.5 }}>No wallet was found in this browser. Install Argent X or Braavos, then reload this page.</span>}
           </div>
           )
         )}
